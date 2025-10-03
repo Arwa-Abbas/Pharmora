@@ -1,0 +1,404 @@
+DB ASSIGNMENT#01 NABIRA KHAN 23K-0914
+
+
+
+---------------
+| QUESTION#01 |
+---------------
+
+
+
+
+-----------------------------------------------------------------------------------------------------------
+PART A
+-----------------------------------------------------------------------------------------------------------
+
+
+• Program–data dependence: programs must be modified if data storage format changes.
+• No data security: no restriction on unauthorized access.
+• Data inconsistency and lack of integrity: updates may apply to some files but not others.
+• Not flexible: fixed queries, limited processing ability.
+• Separation and isolation of data: hard to integrate across multiple files.
+• Duplication of data: same data stored repeatedly, wastes storage, causes inconsistency.
+
+
+-----------------------------------------------------------------------------------------------------------
+PART B
+-----------------------------------------------------------------------------------------------------------
+
+
+Composite key is a primary key made of two or more attributes, used when one attribute alone cannot uniquely identify a tuple.
+Example: ENROLLMENT(Student_ID, Course_ID, Grade)
+• A single student can enroll in multiple courses → Student_ID alone not unique.
+• A single course can have many students → Course_ID alone not unique.
+• Combination (Student_ID, Course_ID) uniquely identifies each enrollment record.
+
+
+-----------------------------------------------------------------------------------------------------------
+PART C
+-----------------------------------------------------------------------------------------------------------
+
+
+• Send queries to DBMS to retrieve/manipulate data.
+• Perform transactions: read and write data into the database.
+• Insertions, deletions, modifications of content.
+• Generate reports from database queries.
+• Concurrent processing support while keeping data consistent.
+• Protection functions: prevent hardware/software malfunction and unauthorized access.
+• Maintenance: keep database updated over long period.
+
+-----------------------------------------------------------------------------------------------------------
+PART D
+-----------------------------------------------------------------------------------------------------------
+
+
+Logical Data Independence is more difficult than physical because changes to the conceptual schema (entities, attributes, constraints) often affect application programs.
+Example: Adding Date_of_birth to STUDENT schema requires modifying conceptual schema; queries and programs that use STUDENT must adapt. Even though external schema should insulate users, in practice applications break, so logical independence is hard.
+
+
+-----------------------------------------------------------------------------------------------------------
+PART E
+-----------------------------------------------------------------------------------------------------------
+
+
+Superkey: Set of attributes SK of a relation R such that no two tuples in any valid state r(R) have the same SK value.
+Key: A minimal superkey, if any attribute is removed, uniqueness is lost.
+Example: CAR(State, Reg#, SerialNo, Make, Model, Year):
+• {SerialNo} → Key (minimal, uniquely identifies each car).
+• {State, Reg#} → Key (composite, minimal, together uniquely identify cars, since Reg# repeats across states).
+• {SerialNo, Make} → Superkey (still unique, but not minimal because Make is unnecessary).
+• {State, Reg#, SerialNo} → Superkey (unique but redundant, SerialNo alone is enough).
+hence, every key is a superkey (uniqueness guaranteed), but not every superkey is a key (some have extra redundant attributes).
+
+
+
+
+---------------
+| QUESTION#02 |
+---------------
+
+
+
+
+-----------------------------------------------------------------------------------------------------------
+PART 1
+-----------------------------------------------------------------------------------------------------------
+
+
+-- Members Table
+CREATE TABLE Members (
+  MemberID   NUMBER,
+  Name       VARCHAR2(100) NOT NULL,                      -- NOT NULL
+  Email      VARCHAR2(150) NOT NULL,                      -- NOT NULL
+  JoinDate   DATE DEFAULT SYSDATE,                        -- DEFAULT
+  CONSTRAINT pk_member PRIMARY KEY (MemberID),            -- PRIMARY KEY
+  CONSTRAINT uq_member_email UNIQUE (Email)               -- UNIQUE
+);
+
+-- Books Table
+CREATE TABLE Books (
+  BookID          NUMBER,
+  Title           VARCHAR2(200) NOT NULL,                 -- NOT NULL
+  Author          VARCHAR2(150) NOT NULL,                 -- NOT NULL
+  CopiesAvailable NUMBER NOT NULL,                        -- NOT NULL
+  CONSTRAINT pk_book PRIMARY KEY (BookID),                -- PRIMARY KEY
+  CONSTRAINT chk_copies_nonneg CHECK (CopiesAvailable >= 0) -- CHECK
+);
+
+-- IssuedBooks Table
+CREATE TABLE IssuedBooks (
+  IssueID    NUMBER,
+  MemberID   NUMBER NOT NULL,                             -- NOT NULL
+  BookID     NUMBER NOT NULL,                             -- NOT NULL
+  IssueDate  DATE DEFAULT SYSDATE,                        -- DEFAULT
+  ReturnDate DATE,
+  CONSTRAINT pk_issue PRIMARY KEY (IssueID),              -- PRIMARY KEY
+  CONSTRAINT fk_issue_member FOREIGN KEY (MemberID) REFERENCES Members(MemberID), -- FOREIGN KEY
+  CONSTRAINT fk_issue_book FOREIGN KEY (BookID) REFERENCES Books(BookID)          -- FOREIGN KEY
+);
+
+
+-----------------------------------------------------------------------------------------------------------
+PART 2
+-----------------------------------------------------------------------------------------------------------
+
+
+RELATIONS
+--------------------------------------------------
+Relation_name    | No_of_columns                 |
+--------------------------------------------------
+Members          | 4                             |
+Books            | 4                             |
+IssuedBooks      | 5                             |
+--------------------------------------------------
+
+COLUMNS
+----------------------------------------------------------------------------------------------------------
+Column_name      | Data_type       | Belongs_to_relation | Constraints                                   |
+----------------------------------------------------------------------------------------------------------
+MemberID         | NUMBER          | Members             | PRIMARY KEY                                   |
+Name             | VARCHAR2(100)   | Members             | NOT NULL                                      |
+Email            | VARCHAR2(150)   | Members             | NOT NULL, UNIQUE                              |
+JoinDate         | DATE            | Members             | DEFAULT SYSDATE                               |
+
+BookID           | NUMBER          | Books               | PRIMARY KEY                                   |
+Title            | VARCHAR2(200)   | Books               | NOT NULL                                      |
+Author           | VARCHAR2(150)   | Books               | NOT NULL                                      |
+CopiesAvailable  | NUMBER          | Books               | NOT NULL, CHECK (>=0)                         |
+
+IssueID          | NUMBER          | IssuedBooks         | PRIMARY KEY                                   |
+MemberID         | NUMBER          | IssuedBooks         | NOT NULL, FOREIGN KEY → Members               |
+BookID           | NUMBER          | IssuedBooks         | NOT NULL, FOREIGN KEY → Books                 |
+IssueDate        | DATE            | IssuedBooks         | DEFAULT SYSDATE                               |
+ReturnDate       | DATE            | IssuedBooks         | -                                             |
+----------------------------------------------------------------------------------------------------------
+
+
+-----------------------------------------------------------------------------------------------------------
+PART 3
+-----------------------------------------------------------------------------------------------------------
+
+
+a)
+-- Insert Members
+INSERT INTO Members (MemberID, Name, Email, JoinDate)
+VALUES (1, 'Nabira Khan', 'nabira.khan@example.com', SYSDATE);
+
+INSERT INTO Members (MemberID, Name, Email, JoinDate)
+VALUES (2, 'Aisha Asif', 'aisha.asif@example.com', SYSDATE);
+
+INSERT INTO Members (MemberID, Name, Email, JoinDate)
+VALUES (3, 'Afaf Shahid', 'afaf.shahid@example.com', SYSDATE);
+
+-- Insert Books
+INSERT INTO Books (BookID, Title, Author, CopiesAvailable)
+VALUES (101, 'Database Systems', 'C.J. Date', 5);
+
+INSERT INTO Books (BookID, Title, Author, CopiesAvailable)
+VALUES (102, 'Operating Systems', 'Abraham Silberschatz', 3);
+
+INSERT INTO Books (BookID, Title, Author, CopiesAvailable)
+VALUES (103, 'Computer Networks', 'Andrew Tanenbaum', 4);
+
+
+b)
+-- Example: Book 101 issued to Member 1 (Nabira Khan)
+INSERT INTO IssuedBooks (IssueID, MemberID, BookID, IssueDate, ReturnDate)
+VALUES (1001, 1, 101, SYSDATE, NULL);
+
+-- Update available copies of that book
+UPDATE Books
+SET CopiesAvailable = CopiesAvailable - 1
+WHERE BookID = 101;
+
+
+c)
+SELECT m.Name AS MemberName, b.Title AS BookTitle
+FROM Members m
+JOIN IssuedBooks ib ON m.MemberID = ib.MemberID
+JOIN Books b ON ib.BookID = b.BookID;
+
+
+-----------------------------------------------------------------------------------------------------------
+PART 4
+-----------------------------------------------------------------------------------------------------------
+
+
+a)
+-- First insert (works fine)
+INSERT INTO Members (MemberID, Name, Email, JoinDate)
+VALUES (10, 'Rameen Zehra', 'rameen.zehra@example.com', SYSDATE);
+
+-- Second insert with the SAME MemberID (violates PRIMARY KEY)
+INSERT INTO Members (MemberID, Name, Email, JoinDate)
+VALUES (10, 'Duplicate User', 'duplicate@example.com', SYSDATE);
+
+
+b)
+-- Try issuing a book to a MemberID that does NOT exist (9999)
+INSERT INTO IssuedBooks (IssueID, MemberID, BookID, IssueDate, ReturnDate)
+VALUES (2001, 9999, 101, SYSDATE, NULL);
+
+
+c)
+-- Try inserting a book with negative copies (violates CHECK constraint)
+INSERT INTO Books (BookID, Title, Author, CopiesAvailable)
+VALUES (201, 'Invalid Book', 'Unknown Author', -5);
+
+
+-----------------------------------------------------------------------------------------------------------
+PART 5
+-----------------------------------------------------------------------------------------------------------
+
+
+1. Due Date & Fine Management – The system can be improved by introducing a due date for issued books and implementing an automatic fine calculation feature for late returns. This will encourage timely returns and improve circulation efficiency.
+
+2. Book Reservation System – Another improvement would be to add a reservation module that allows members to reserve books currently unavailable. This ensures fair access and better member satisfaction.
+
+ADDING ENHANCEMENTS:
+-	Normalize the database further to reduce redundancy and improve data integrity.
+-	Add proper indexing and optimization to improve query speed and scalability.
+
+
+-----------------------------------------------------------------------------------------------------------
+PART 6
+-----------------------------------------------------------------------------------------------------------
+
+
+a) SELECT Name FROM Members m WHERE NOT EXISTS (SELECT 1 FROM IssuedBooks ib WHERE ib.MemberID = m.MemberID);
+
+b) SELECT Title, CopiesAvailable FROM Books WHERE CopiesAvailable = (SELECT MAX(CopiesAvailable) FROM Books);
+
+c) SELECT Name, MemberID FROM Members WHERE MemberID = (SELECT MemberID FROM (SELECT MemberID FROM IssuedBooks GROUP BY MemberID ORDER BY COUNT(*) DESC) WHERE ROWNUM = 1);
+
+d) SELECT Title FROM Books b WHERE NOT EXISTS (SELECT 1 FROM IssuedBooks ib WHERE ib.BookID = b.BookID);
+
+e) SELECT m.Name, ib.BookID, ib.IssueDate FROM Members m JOIN IssuedBooks ib ON m.MemberID = ib.MemberID WHERE ib.ReturnDate IS NULL AND ib.IssueDate < SYSDATE - 30;
+
+
+
+
+---------------
+| QUESTION#03 |
+---------------
+
+
+
+
+-----------------------------------------------------------------------------------------------------------
+TABLES
+-----------------------------------------------------------------------------------------------------------
+
+
+-- Patient Table with required constraints
+CREATE TABLE Patient (
+  Patient_ID   NUMBER PRIMARY KEY,                          -- PRIMARY KEY
+  Name         VARCHAR2(100) NOT NULL,                      -- NOT NULL
+  Gender       CHAR(1) CHECK (Gender IN ('M', 'F')),        -- CHECK constraint
+  DOB          DATE,
+  Email        VARCHAR2(150) UNIQUE,                        -- UNIQUE
+  Phone        VARCHAR2(20),
+  Address      VARCHAR2(200),
+  Username     VARCHAR2(50),
+  Password     VARCHAR2(50)
+);
+
+-- Doctor Table
+CREATE TABLE Doctor (
+  Doctor_ID      NUMBER PRIMARY KEY,                        -- PRIMARY KEY
+  Name           VARCHAR2(100) NOT NULL,                    -- NOT NULL
+  Specialization VARCHAR2(100),
+  Username       VARCHAR2(50),
+  Password       VARCHAR2(50)
+);
+
+-- Appointment Table
+CREATE TABLE Appointment (
+  Appointment_ID   NUMBER PRIMARY KEY,                      -- PRIMARY KEY
+  Appointment_Date DATE,
+  Appointment_Time VARCHAR2(20),
+  Status           VARCHAR2(50),
+  Clinic_Number    VARCHAR2(20),
+  Patient_ID       NUMBER,
+  Doctor_ID        NUMBER,
+  CONSTRAINT fk_appt_patient FOREIGN KEY (Patient_ID) REFERENCES Patient(Patient_ID),   -- FOREIGN KEY
+  CONSTRAINT fk_appt_doctor  FOREIGN KEY (Doctor_ID)  REFERENCES Doctor(Doctor_ID)      -- FOREIGN KEY
+);
+
+-- Prescription Table
+CREATE TABLE Prescription (
+  Prescription_ID   NUMBER PRIMARY KEY,                     -- PRIMARY KEY
+  Presc_Date        DATE,                                   -- changed name (DATE reserved)
+  Doctor_Advice     VARCHAR2(500),
+  Followup_Required VARCHAR2(10),
+  Patient_ID        NUMBER,
+  Doctor_ID         NUMBER,
+  CONSTRAINT fk_pres_patient FOREIGN KEY (Patient_ID) REFERENCES Patient(Patient_ID),   -- FOREIGN KEY
+  CONSTRAINT fk_pres_doctor  FOREIGN KEY (Doctor_ID)  REFERENCES Doctor(Doctor_ID)      -- FOREIGN KEY
+);
+
+-- Invoice Table
+CREATE TABLE Invoice (
+  Invoice_ID      NUMBER PRIMARY KEY,                       -- PRIMARY KEY
+  Invoice_Date    DATE,
+  Amount          NUMBER(10,2),
+  Payment_Status  VARCHAR2(50),
+  Payment_Method  VARCHAR2(50),
+  Patient_ID      NUMBER,
+  CONSTRAINT fk_invoice_patient FOREIGN KEY (Patient_ID) REFERENCES Patient(Patient_ID) -- FOREIGN KEY
+);
+
+-- Tests Table
+CREATE TABLE Tests (
+  Test_ID    NUMBER PRIMARY KEY,                            -- PRIMARY KEY
+  Blood_Test VARCHAR2(50),
+  XRay       VARCHAR2(50),
+  MRI        VARCHAR2(50),
+  CT_Scan    VARCHAR2(50)
+);
+
+
+-----------------------------------------------------------------------------------------------------------
+DML QUERIES
+-----------------------------------------------------------------------------------------------------------
+
+
+a) Update phone number and email of a patient
+UPDATE Patient SET Phone='03001234567', Email='newmail@example.com' WHERE Patient_ID=1;
+
+b) Update payment status of an invoice
+UPDATE Invoice SET Payment_Status='Paid' WHERE Payment_Status='Unpaid' AND Invoice_ID=1001;
+
+c) Delete all cancelled appointments
+DELETE FROM Appointment WHERE Status='Cancelled';
+
+d) Delete an invoice for a refunded patient
+DELETE FROM Invoice WHERE Patient_ID=2 AND Payment_Status='Refunded';
+
+e) Select all appointments still "Booked"
+SELECT * FROM Appointment WHERE Status='Booked';
+
+f) Select all invoices that are "Unpaid"
+SELECT * FROM Invoice WHERE Payment_Status='Unpaid';
+
+g) Select all lab tests of type "Blood Test"
+SELECT Test_ID, Blood_Test FROM Tests WHERE Blood_Test IS NOT NULL;
+
+h) Select all prescriptions issued on '2025-09-02'
+SELECT * FROM Prescription WHERE Presc_Date=TO_DATE('2025-09-02','YYYY-MM-DD');
+
+
+-----------------------------------------------------------------------------------------------------------
+ADVANCE SQL
+-----------------------------------------------------------------------------------------------------------
+
+
+a) Show all patients with their doctors booked
+SELECT p.Name AS Patient_Name, d.Name AS Doctor_Name
+FROM Appointment a
+JOIN Patient p ON a.Patient_ID = p.Patient_ID
+JOIN Doctor d ON a.Doctor_ID = d.Doctor_ID
+WHERE a.Status = 'Booked';
+
+b) Show all lab tests of patients and the doctor who requested them
+SELECT p.Name AS Patient_Name, d.Name AS Doctor_Name, t.Blood_Test, t.XRay, t.MRI, t.CT_Scan
+FROM Tests t
+JOIN Patient p ON t.Test_ID = p.Patient_ID
+JOIN Appointment a ON p.Patient_ID = a.Patient_ID
+JOIN Doctor d ON a.Doctor_ID = d.Doctor_ID;
+
+c) Show prescriptions with medicines only for patients named "Ali Khan"
+SELECT pr.Prescription_ID, pr.Doctor_Advice, pr.Followup_Required
+FROM Prescription pr
+JOIN Patient p ON pr.Patient_ID = p.Patient_ID
+WHERE p.Name = 'Ali Khan';
+
+d) Show prescriptions with doctors where follow-up is required
+SELECT pr.Prescription_ID, d.Name AS Doctor_Name, p.Name AS Patient_Name, pr.Doctor_Advice
+FROM Prescription pr
+JOIN Doctor d ON pr.Doctor_ID = d.Doctor_ID
+JOIN Patient p ON pr.Patient_ID = p.Patient_ID
+WHERE pr.Followup_Required = 'Yes';
+
+
+

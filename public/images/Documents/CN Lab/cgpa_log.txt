@@ -1,0 +1,17 @@
+
+Student ID: 23K-0914
+Subject 1: Credit Hours=3, Marks=90, Grade=A+, GPA=4.0
+Subject 2: Credit Hours=2, Marks=88, Grade=A, GPA=4.0
+Subject 3: Credit Hours=3, Marks=86, Grade=A, GPA=4.0
+Subject 4: Credit Hours=1, Marks=96, Grade=A+, GPA=4.0
+Subject 5: Credit Hours=3, Marks=86, Grade=A, GPA=4.0
+Overall CGPA: 4.00
+
+
+Student ID: 23K-0914
+Subject 1: Credit Hours=3, Marks=90, Grade=A+, GPA=4.0
+Subject 2: Credit Hours=2, Marks=84, Grade=A-, GPA=3.7
+Subject 3: Credit Hours=1, Marks=86, Grade=A, GPA=4.0
+Subject 4: Credit Hours=3, Marks=79, Grade=B+, GPA=3.3
+Overall CGPA: 3.70
+

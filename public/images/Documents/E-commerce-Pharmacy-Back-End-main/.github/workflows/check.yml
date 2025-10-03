@@ -1,0 +1,132 @@
+name: Django CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run tests and check code quality
+    runs-on: ubuntu-latest
+
+    # Remove the strategy matrix to run the job sequentially
+    # strategy:
+    #   matrix:
+    #     python-version: [ 3.11 ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+
+          python -m pip install --upgrade pip
+          pip install -r project/requirements.txt
+
+      - name: Set up environment variables
+        env:
+          DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+          DATABASE_USER: ${{ secrets.DATABASE_USER }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+
+          DROPBOX_OAUTH2_REFRESH_TOKEN: ${{ secrets.DROPBOX_OAUTH2_REFRESH_TOKEN }}
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          FIREBASE_ADMINSDK_JSON: ${{ secrets.FIREBASE_ADMINSDK_JSON }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+
+          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+
+        run: |
+          echo "DATABASE_NAME=$DATABASE_NAME" >> $GITHUB_ENV
+          echo "DATABASE_USER=$DATABASE_USER" >> $GITHUB_ENV
+          echo "DATABASE_PASSWORD=$DATABASE_PASSWORD" >> $GITHUB_ENV
+          echo "DATABASE_HOST=$DATABASE_HOST" >> $GITHUB_ENV
+
+          echo "DROPBOX_OAUTH2_REFRESH_TOKEN=$DROPBOX_OAUTH2_REFRESH_TOKEN" >> $GITHUB_ENV
+          echo "DROPBOX_APP_KEY=$DROPBOX_APP_KEY" >> $GITHUB_ENV
+          echo "DROPBOX_APP_SECRET=$DROPBOX_APP_SECRET" >> $GITHUB_ENV
+          echo "FIREBASE_ADMINSDK_JSON=$FIREBASE_ADMINSDK_JSON" >> $GITHUB_ENV
+          echo "SECRET_KEY=$SECRET_KEY" >> $GITHUB_ENV
+
+          echo "EMAIL_HOST_USER=$EMAIL_HOST_USER" >> $GITHUB_ENV
+          echo "EMAIL_HOST_PASSWORD=$EMAIL_HOST_PASSWORD" >> $GITHUB_ENV
+
+      # - name: Prepare database
+      #   run: |
+      #     python manage.py migrate --no-input
+      #     python manage.py collectstatic --no-input
+
+      - name: Run tests
+        run: |
+          cd project
+          python manage.py makemigrations
+          python manage.py migrate
+          python manage.py test --no-input
+
+# name: Django CI
+
+# on:
+#   push:
+#     branches:
+#       - main
+#   pull_request:
+#     branches:
+#       - main
+# concurrency:
+#   group: ${{ github.head_ref ||  github.ref }}
+
+# jobs:
+
+#   test:
+#     name: Run tests and check code quality
+#     runs-on: ubuntu-latest
+
+#     strategy:
+#       matrix:
+#         python-version: [ 3.11]
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Set up Python ${{ matrix.python-version }}
+#       uses: actions/setup-python@v4
+#       with:
+#         python-version: ${{ matrix.python-version }}
+
+#     - name: Install dependencies
+#       run: |
+#         python -m pip install --upgrade pip
+#         pip install -r requirements.txt
+
+#     - name: Prepare database
+#       run: |
+#           python manage.py migrate --no-input
+#           python manage.py collectstatic --no-input
+
+#     - name: Run tests
+#       run: python manage.py test --no-input
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
+# - concurrency:
+# group: example-group
+# cancel-in-progress: true
+
+# - name: Check code quality
+#   run: |
+#     flake8 .
+#     for app_dir in $(find . -maxdepth 1 -type d -name "*"); do pylint "$app_dir"; done
