@@ -3,6 +3,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const dns = require('dns');   // <-- add this
+
+// Force IPv4 to avoid IPv6 issues
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 app.use(cors());
