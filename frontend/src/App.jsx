@@ -2,6 +2,9 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import Home from "./Home";
 import Products from "./Products";
+import Suppliers from "./Suppliers";
+import Doctors from "./Doctors";          // ✅ new import
+import Pharmacists from "./Pharmacists";  // ✅ new import
 
 function Navbar() {
   return (
@@ -15,9 +18,9 @@ function Navbar() {
       <div className="flex space-x-6">
         <Link to="/" className="hover:text-gray-300 transition">Home</Link>
         <Link to="/products" className="hover:text-gray-300 transition">Products</Link>
-        <a href="#" className="hover:text-gray-300 transition">Doctors</a>
-        <a href="#" className="hover:text-gray-300 transition">Pharmacists</a>
-        <a href="#" className="hover:text-gray-300 transition">Suppliers</a>
+        <Link to="/doctors" className="hover:text-gray-300 transition">Doctors</Link>        {/* ✅ fixed */}
+        <Link to="/pharmacists" className="hover:text-gray-300 transition">Pharmacists</Link> {/* ✅ fixed */}
+        <Link to="/suppliers" className="hover:text-gray-300 transition">Suppliers</Link>
         <a href="#" className="hover:text-gray-300 transition">Admin</a>
       </div>
     </nav>
@@ -28,10 +31,13 @@ function App() {
   return (
     <Router>
       <Navbar />
-      <div className="pt-20"> {/* Push content below fixed navbar */}
+      <div className="pt-20">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/doctors" element={<Doctors />} />          {/* ✅ new route */}
+          <Route path="/pharmacists" element={<Pharmacists />} />  {/* ✅ new route */}
         </Routes>
       </div>
     </Router>
