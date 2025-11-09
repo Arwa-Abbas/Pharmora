@@ -11,50 +11,57 @@ function Navbar() {
     navigate("/login");
   };
 
-  // Hide navbar entirely for dashboards (they have their own nav)
+  // Hide navbar for dashboards
   if (
     location.pathname.includes("doctor-dashboard") ||
     location.pathname.includes("pharmacist-dashboard") ||
     location.pathname.includes("supplier-dashboard") ||
-    location.pathname.includes('admin-dashboard')
+    location.pathname.includes("admin-dashboard")
   ) {
     return null;
   }
 
   return (
-    <nav className="flex items-center justify-between px-8 py-4 bg-[#2b0d0d] text-white fixed w-full z-50 shadow-md">
-      <h1 className="text-2xl font-bold">Pharmora</h1>
+    <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md shadow-sm z-50 border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
+        {/* Left side: Logo */}
+        <div className="text-2xl font-bold bg-gradient-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent">
+          Pharmora
+        </div>
 
-      <input
-        type="text"
-        placeholder="Search medicines..."
-        className="p-2 rounded-lg w-72 text-black shadow focus:ring-2 focus:ring-[#2b0d0d]"
-      />
+        {/* Middle: Search bar */}
+        <input
+          type="text"
+          placeholder="Search medicines..."
+          className="p-2 rounded-lg w-72 text-gray-800 shadow focus:ring-2 focus:ring-cyan-600 outline-none"
+        />
 
-      <div className="flex space-x-6 items-center">
-        <Link to="/" className="hover:text-gray-300 transition">Home</Link>
-        <Link to="/products" className="hover:text-gray-300 transition">Products</Link>
-        <Link to="/doctors" className="hover:text-gray-300 transition">Doctors</Link>
-        <Link to="/pharmacists" className="hover:text-gray-300 transition">Pharmacists</Link>
-        <Link to="/suppliers" className="hover:text-gray-300 transition">Suppliers</Link>
+        {/* Right side: Navigation links + buttons */}
+        <div className="flex items-center space-x-6">
+          <Link to="/" className="text-gray-700 hover:text-cyan-600 transition">Home</Link>
+          <Link to="/products" className="text-gray-700 hover:text-cyan-600 transition">Products</Link>
+          <Link to="/doctors" className="text-gray-700 hover:text-cyan-600 transition">Doctors</Link>
+          <Link to="/suppliers" className="text-gray-700 hover:text-cyan-600 transition">Suppliers</Link>
+          <Link to="/pharmacists" className="text-gray-700 hover:text-cyan-600 transition">Pharmacists</Link>
 
-        {!user ? (
-          <Link to="/login">
-            <button className="bg-green-600 hover:bg-green-700 px-4 py-1 rounded text-white transition">
-              Sign In
-            </button>
-          </Link>
-        ) : (
-          <>
-            <span className="text-sm text-gray-300">Welcome, {user.role}</span>
-            <button
-              onClick={handleSignOut}
-              className="bg-red-600 hover:bg-red-700 px-4 py-1 rounded text-white transition"
-            >
-              Sign Out
-            </button>
-          </>
-        )}
+          {!user ? (
+            <Link to="/login">
+              <button className="px-6 py-2 bg-gradient-to-r from-cyan-600 to-teal-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-300">
+                Sign In
+              </button>
+            </Link>
+          ) : (
+            <div className="flex items-center space-x-3">
+              <span className="text-sm text-gray-700">Welcome, {user.role}</span>
+              <button
+                onClick={handleSignOut}
+                className="bg-red-600 hover:bg-red-700 px-4 py-1 rounded text-white transition"
+              >
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </nav>
   );
