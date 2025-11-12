@@ -1,19 +1,50 @@
 import React, { useEffect, useState } from "react";
-import { ShoppingCart, Heart } from "lucide-react";
+import { ShoppingCart, Heart, CheckCircle } from "lucide-react";
 
 function Products() {
   const [medicines, setMedicines] = useState([]);
+  const [addedToCart, setAddedToCart] = useState({});
+  const user = JSON.parse(localStorage.getItem("user"));
 
   useEffect(() => {
-    fetch("http://localhost:5000/medicines") // ✅ ensure backend route matches this
+    fetch("http://localhost:5000/medicines")
       .then((res) => res.json())
       .then((data) => setMedicines(data))
       .catch((err) => console.error("Error fetching medicines:", err));
   }, []);
 
+  const handleAddToCart = async (medicine) => {
+    if (!user) {
+      alert("Please login to add items to cart");
+      return;
+    }
+
+    try {
+      const response = await fetch("http://localhost:5000/api/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.id,
+          medicine_id: medicine.medicine_id,
+          quantity: 1,
+        }),
+      });
+
+      if (response.ok) {
+        setAddedToCart({ ...addedToCart, [medicine.medicine_id]: true });
+        setTimeout(() => {
+          setAddedToCart({ ...addedToCart, [medicine.medicine_id]: false });
+        }, 2000);
+      }
+    } catch (err) {
+      console.error("Error adding to cart:", err);
+      alert("Failed to add to cart");
+    }
+  };
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
-      <h2 className="text-3xl font-bold mb-8 text-center text-[#2b0d0d]">
+      <h2 className="text-3xl font-bold mb-8 text-center text-gray-900">
         Available Medicines
       </h2>
 
@@ -37,7 +68,7 @@ function Products() {
               }}
             />
             <div className="p-6">
-              <h3 className="text-xl font-semibold text-[#2b0d0d] mb-1">
+              <h3 className="text-xl font-semibold text-gray-900 mb-1">
                 {item.name}
               </h3>
               <p className="text-sm text-gray-500 mb-3">
@@ -72,10 +103,24 @@ function Products() {
                   Supplier ID: {item.supplier_id}
                 </span>
                 <div className="flex space-x-3">
-                  <button className="p-2 bg-[#2b0d0d] text-white rounded-lg hover:bg-black transition">
-                    <ShoppingCart size={20} />
+                  <button
+                    onClick={() => handleAddToCart(item)}
+                    disabled={item.stock === 0}
+                    className={`p-2 ${
+                      item.stock === 0
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : addedToCart[item.medicine_id]
+                        ? "bg-green-600"
+                        : "bg-cyan-600 hover:bg-cyan-700"
+                    } text-white rounded-lg transition`}
+                  >
+                    {addedToCart[item.medicine_id] ? (
+                      <CheckCircle size={20} />
+                    ) : (
+                      <ShoppingCart size={20} />
+                    )}
                   </button>
-                  <button className="p-2 border border-[#2b0d0d] rounded-lg hover:bg-red-100 transition">
+                  <button className="p-2 border border-cyan-600 rounded-lg hover:bg-red-100 transition">
                     <Heart size={20} className="text-red-600" />
                   </button>
                 </div>
