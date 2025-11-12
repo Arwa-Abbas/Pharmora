@@ -7,11 +7,12 @@ import Suppliers from "./Suppliers";
 import Doctors from "./Doctors";
 import Pharmacists from "./Pharmacists";
 import Login from "./Login";
+import PatientDashboard from "./PatientDashboard";
+import Cart from "./Cart"; // ✅ Add this import
 
-// Wrapper to conditionally show Navbar
 function Layout({ children }) {
   const location = useLocation();
-  const hideNavbarOn = ["/login"]; // Add any route where navbar shouldn't show
+  const hideNavbarOn = ["/login", "/patient-dashboard"]; // Hide Navbar on these routes
 
   return (
     <>
@@ -34,6 +35,8 @@ function App() {
           <Route path="/doctors" element={<Doctors />} />
           <Route path="/pharmacists" element={<Pharmacists />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/patient-dashboard" element={<PatientDashboard />} />
+          <Route path="/cart" element={<Cart />} /> {/* ✅ Added Cart route */}
         </Routes>
       </Layout>
     </Router>

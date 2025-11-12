@@ -53,6 +53,24 @@ function Navbar() {
           ) : (
             <div className="flex items-center space-x-3">
               <span className="text-sm text-gray-700">Welcome, {user.role}</span>
+
+              {/* My Account button */}
+              <button
+                onClick={() => navigate("/patient-dashboard")}
+                className="px-4 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded transition"
+              >
+                My Account
+              </button>
+
+              {/* View Cart button */}
+              <button
+                onClick={() => navigate("/cart")}
+                className="px-4 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition"
+              >
+                View Cart
+              </button>
+
+              {/* Sign Out button */}
               <button
                 onClick={handleSignOut}
                 className="bg-red-600 hover:bg-red-700 px-4 py-1 rounded text-white transition"
