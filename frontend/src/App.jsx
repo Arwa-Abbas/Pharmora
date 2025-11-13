@@ -1,3 +1,4 @@
+// frontend/src/App.jsx
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
@@ -8,11 +9,12 @@ import Doctors from "./Doctors";
 import Pharmacists from "./Pharmacists";
 import Login from "./Login";
 import PatientDashboard from "./PatientDashboard";
-import Cart from "./Cart"; // ✅ Add this import
+import DoctorDashboard from "./DoctorDashboard";
+import Cart from "./Cart";
 
 function Layout({ children }) {
   const location = useLocation();
-  const hideNavbarOn = ["/login", "/patient-dashboard"]; // Hide Navbar on these routes
+  const hideNavbarOn = ["/login", "/patient-dashboard", "/doctor-dashboard"];
 
   return (
     <>
@@ -36,7 +38,8 @@ function App() {
           <Route path="/pharmacists" element={<Pharmacists />} />
           <Route path="/login" element={<Login />} />
           <Route path="/patient-dashboard" element={<PatientDashboard />} />
-          <Route path="/cart" element={<Cart />} /> {/* ✅ Added Cart route */}
+          <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
+          <Route path="/cart" element={<Cart />} />
         </Routes>
       </Layout>
     </Router>
