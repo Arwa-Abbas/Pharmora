@@ -12,7 +12,7 @@ function Doctors() {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      {/* ✅ Top Banner */}
+      {/* Top Banner */}
       <div className="w-full h-64 overflow-hidden">
         <img
           src="/images/doctors.jpg"
