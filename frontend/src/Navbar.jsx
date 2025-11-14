@@ -11,12 +11,41 @@ function Navbar() {
     navigate("/login");
   };
 
-  // Hide navbar for dashboards
+  const handleMyAccount = () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    // Navigate to the correct dashboard based on user role
+    switch (user.role) {
+      case "Doctor":
+        navigate("/doctor-dashboard");
+        break;
+      case "Patient":
+        navigate("/patient-dashboard");
+        break;
+      case "Pharmacist":
+        navigate("/pharmacist-dashboard");
+        break;
+      case "Supplier":
+        navigate("/supplier-dashboard");
+        break;
+      case "Admin":
+        navigate("/admin-dashboard");
+        break;
+      default:
+        navigate("/login");
+    }
+  };
+
+  // ✅ Hide navbar for all dashboard routes
   if (
     location.pathname.includes("doctor-dashboard") ||
     location.pathname.includes("pharmacist-dashboard") ||
     location.pathname.includes("supplier-dashboard") ||
-    location.pathname.includes("admin-dashboard")
+    location.pathname.includes("admin-dashboard") ||
+    location.pathname.includes("patient-dashboard")
   ) {
     return null;
   }
@@ -38,11 +67,21 @@ function Navbar() {
 
         {/* Right side: Navigation links + buttons */}
         <div className="flex items-center space-x-6">
-          <Link to="/" className="text-gray-700 hover:text-cyan-600 transition">Home</Link>
-          <Link to="/products" className="text-gray-700 hover:text-cyan-600 transition">Products</Link>
-          <Link to="/doctors" className="text-gray-700 hover:text-cyan-600 transition">Doctors</Link>
-          <Link to="/suppliers" className="text-gray-700 hover:text-cyan-600 transition">Suppliers</Link>
-          <Link to="/pharmacists" className="text-gray-700 hover:text-cyan-600 transition">Pharmacists</Link>
+          <Link to="/" className="text-gray-700 hover:text-cyan-600 transition">
+            Home
+          </Link>
+          <Link to="/products" className="text-gray-700 hover:text-cyan-600 transition">
+            Products
+          </Link>
+          <Link to="/doctors" className="text-gray-700 hover:text-cyan-600 transition">
+            Doctors
+          </Link>
+          <Link to="/suppliers" className="text-gray-700 hover:text-cyan-600 transition">
+            Suppliers
+          </Link>
+          <Link to="/pharmacists" className="text-gray-700 hover:text-cyan-600 transition">
+            Pharmacists
+          </Link>
 
           {!user ? (
             <Link to="/login">
@@ -52,7 +91,25 @@ function Navbar() {
             </Link>
           ) : (
             <div className="flex items-center space-x-3">
-              <span className="text-sm text-gray-700">Welcome, {user.role}</span>
+              <span className="text-sm text-gray-700">Welcome, {user.name || user.role}</span>
+
+              {/* My Account button - FIXED */}
+              <button
+                onClick={handleMyAccount}
+                className="px-4 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded transition"
+              >
+                My Account
+              </button>
+
+              {/* View Cart button */}
+              <button
+                onClick={() => navigate("/cart")}
+                className="px-4 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition"
+              >
+                View Cart
+              </button>
+
+              {/* Sign Out button */}
               <button
                 onClick={handleSignOut}
                 className="bg-red-600 hover:bg-red-700 px-4 py-1 rounded text-white transition"

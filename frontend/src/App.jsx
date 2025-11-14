@@ -1,3 +1,4 @@
+// frontend/src/App.jsx
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
@@ -7,11 +8,14 @@ import Suppliers from "./Suppliers";
 import Doctors from "./Doctors";
 import Pharmacists from "./Pharmacists";
 import Login from "./Login";
+import PatientDashboard from "./PatientDashboard";
+import DoctorDashboard from "./DoctorDashboard";
+import SupplierDashboard from "./SupplierDashboard";
+import Cart from "./Cart";
 
-// Wrapper to conditionally show Navbar
 function Layout({ children }) {
   const location = useLocation();
-  const hideNavbarOn = ["/login"]; // Add any route where navbar shouldn't show
+  const hideNavbarOn = ["/login", "/patient-dashboard", "/doctor-dashboard", "/supplier-dashboard"];
 
   return (
     <>
@@ -34,6 +38,10 @@ function App() {
           <Route path="/doctors" element={<Doctors />} />
           <Route path="/pharmacists" element={<Pharmacists />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/patient-dashboard" element={<PatientDashboard />} />
+          <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
+          <Route path="/supplier-dashboard" element={<SupplierDashboard />} />
+          <Route path="/cart" element={<Cart />} />
         </Routes>
       </Layout>
     </Router>
