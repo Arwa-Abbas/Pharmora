@@ -134,6 +134,18 @@ function SupplierDashboard() {
       });
     }
 
+    // Shipped but not delivered notifications
+    const shippedRequests = requests.filter(r => r.delivery_status === 'Shipped');
+    if (shippedRequests.length > 0) {
+      notifs.push({
+        id: 'shipped-orders',
+        type: 'delivery',
+        message: `${shippedRequests.length} order${shippedRequests.length > 1 ? 's are' : ' is'} in transit`,
+        count: shippedRequests.length,
+        priority: 'medium'
+      });
+    }
+
     // Low stock notifications
     const lowStockItems = inventory.filter(item => item.quantity_available <= item.reorder_level);
     if (lowStockItems.length > 0) {
@@ -199,6 +211,53 @@ function SupplierDashboard() {
     } catch (err) {
       console.error("Error rejecting request:", err);
       alert("Failed to reject request");
+    }
+  };
+
+  const handleShipOrder = async (requestId) => {
+    const trackingInfo = window.prompt("Enter tracking information (optional):");
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/stock-requests/${requestId}/ship`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tracking_info: trackingInfo })
+      });
+
+      if (response.ok) {
+        alert("Order marked as shipped!");
+        loadData();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Failed to ship order");
+      }
+    } catch (err) {
+      console.error("Error shipping order:", err);
+      alert("Failed to ship order");
+    }
+  };
+
+  const handleMarkDelivered = async (requestId) => {
+    if (!window.confirm("Mark this order as delivered? This will update inventory.")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/stock-requests/${requestId}/deliver`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.ok) {
+        alert("Order marked as delivered! Inventory updated.");
+        loadData();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Failed to mark as delivered");
+      }
+    } catch (err) {
+      console.error("Error marking as delivered:", err);
+      alert("Failed to mark as delivered");
     }
   };
 
@@ -400,6 +459,11 @@ function SupplierDashboard() {
           >
             <Truck size={20} />
             <span>Deliveries</span>
+            {stockRequests.filter(req => req.delivery_status === "Shipped").length > 0 && (
+              <span className="ml-auto bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                {stockRequests.filter(req => req.delivery_status === "Shipped").length}
+              </span>
+            )}
           </button>
 
           <button
@@ -476,6 +540,7 @@ function SupplierDashboard() {
                     <button
                       onClick={() => {
                         if (notif.type === 'request') setActiveTab('requests');
+                        if (notif.type === 'delivery') setActiveTab('deliveries');
                         if (notif.type === 'warning') setActiveTab('inventory');
                         setShowNotifications(false);
                       }}
@@ -591,6 +656,15 @@ function SupplierDashboard() {
                               <div>
                                 <p className="font-medium text-sm">{request.medicine_name}</p>
                                 <p className="text-xs text-gray-600">{request.pharmacist_name}</p>
+                                {request.delivery_status && (
+                                  <span className={`text-xs px-1 py-0.5 rounded ${
+                                    request.delivery_status === 'NotShipped' ? 'bg-gray-100 text-gray-700' :
+                                    request.delivery_status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
+                                    'bg-green-100 text-green-700'
+                                  }`}>
+                                    {request.delivery_status}
+                                  </span>
+                                )}
                               </div>
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 request.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
@@ -662,20 +736,41 @@ function SupplierDashboard() {
                               <p className="text-sm text-gray-600">
                                 Date: {new Date(request.request_date).toLocaleDateString()}
                               </p>
+                              
+                              {/* Delivery Status Badge */}
+                              {request.delivery_status && (
+                                <div className="mt-2">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    request.delivery_status === 'NotShipped' ? 'bg-gray-100 text-gray-700' :
+                                    request.delivery_status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
+                                    request.delivery_status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    Delivery: {request.delivery_status}
+                                  </span>
+                                  {request.tracking_info && (
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      Tracking: {request.tracking_info}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <span
-                              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                request.status === "Completed"
-                                  ? "bg-green-100 text-green-700"
-                                  : request.status === "Accepted"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : request.status === "Pending"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-red-100 text-red-700"
-                              }`}
-                            >
-                              {request.status}
-                            </span>
+                            <div className="text-right">
+                              <span
+                                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                  request.status === "Completed"
+                                    ? "bg-green-100 text-green-700"
+                                    : request.status === "Accepted"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : request.status === "Pending"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {request.status}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="bg-teal-50 rounded p-4 mb-4">
@@ -710,13 +805,34 @@ function SupplierDashboard() {
                           )}
 
                           {request.status === "Accepted" && (
-                            <button
-                              onClick={() => handleCompleteDelivery(request.request_id)}
-                              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2"
-                            >
-                              <Truck size={20} />
-                              Mark as Delivered
-                            </button>
+                            <div className="flex gap-3">
+                              {request.delivery_status === "NotShipped" && (
+                                <button
+                                  onClick={() => handleShipOrder(request.request_id)}
+                                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2"
+                                >
+                                  <Truck size={20} />
+                                  Mark as Shipped
+                                </button>
+                              )}
+                              {request.delivery_status === "Shipped" && (
+                                <button
+                                  onClick={() => handleMarkDelivered(request.request_id)}
+                                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
+                                >
+                                  <CheckCircle size={20} />
+                                  Mark as Delivered
+                                </button>
+                              )}
+                              {/* Keep old complete delivery button for backward compatibility */}
+                              <button
+                                onClick={() => handleCompleteDelivery(request.request_id)}
+                                className="flex-1 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 flex items-center justify-center gap-2"
+                              >
+                                <Truck size={20} />
+                                Complete Delivery
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -990,26 +1106,43 @@ function SupplierDashboard() {
               {/* Deliveries Tab */}
               {activeTab === "deliveries" && (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6">Delivery History</h2>
+                  <h2 className="text-2xl font-bold mb-6">Delivery Tracking</h2>
 
-                  {stockRequests.filter(req => req.status === "Accepted" || req.status === "Completed").length === 0 ? (
+                  {stockRequests.filter(req => 
+                    req.delivery_status === "Shipped" || 
+                    req.delivery_status === "Delivered" ||
+                    req.status === "Completed"
+                  ).length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-lg shadow">
                       <Truck size={64} className="mx-auto text-gray-400 mb-4" />
                       <p className="text-gray-600">No delivery history yet</p>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Accepted stock requests will appear here once shipped
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {stockRequests
-                        .filter(req => req.status === "Accepted" || req.status === "Completed")
+                        .filter(req => 
+                          req.delivery_status === "Shipped" || 
+                          req.delivery_status === "Delivered" ||
+                          req.status === "Completed"
+                        )
                         .map((request) => (
                           <div
                             key={request.request_id}
-                            className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500"
+                            className={`bg-white rounded-lg shadow p-6 border-l-4 ${
+                              request.delivery_status === "Delivered" || request.status === "Completed" 
+                                ? "border-green-500" 
+                                : "border-blue-500"
+                            }`}
                           >
                             <div className="flex justify-between items-start mb-4">
                               <div>
                                 <h3 className="font-semibold text-lg">
-                                  Delivery #{request.request_id}
+                                  {request.delivery_status === "Delivered" || request.status === "Completed" 
+                                    ? "✅ Delivered" 
+                                    : "🚚 In Transit"} - Request #{request.request_id}
                                 </h3>
                                 <p className="text-sm text-gray-600">
                                   To: {request.pharmacist_name} • {request.pharmacy_name}
@@ -1018,30 +1151,77 @@ function SupplierDashboard() {
                                   Contact: {request.pharmacist_email} • {request.pharmacist_phone}
                                 </p>
                                 <p className="text-sm text-gray-600">
-                                  Date: {new Date(request.request_date).toLocaleDateString()}
+                                  Request Date: {new Date(request.request_date).toLocaleDateString()}
                                 </p>
+                                
+                                {/* Delivery Timeline */}
+                                <div className="mt-3 space-y-1">
+                                  {request.shipped_date && (
+                                    <p className="text-sm text-blue-600">
+                                      📦 Shipped on: {new Date(request.shipped_date).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                  {request.delivered_date && (
+                                    <p className="text-sm text-green-600">
+                                      ✅ Delivered on: {new Date(request.delivered_date).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                  {request.tracking_info && (
+                                    <p className="text-sm text-gray-600">
+                                      📋 Tracking: {request.tracking_info}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <span
-                                className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                  request.status === "Completed"
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-blue-100 text-blue-700"
-                                }`}
-                              >
-                                {request.status}
-                              </span>
+                              <div className="text-right">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                    request.delivery_status === "Delivered" || request.status === "Completed"
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-blue-100 text-blue-700"
+                                  }`}
+                                >
+                                  {request.delivery_status === "Delivered" || request.status === "Completed" 
+                                    ? "Delivered" 
+                                    : "In Transit"}
+                                </span>
+                                {request.delivery_status === "Delivered" || request.status === "Completed" ? (
+                                  <p className="text-sm text-green-600 mt-1 font-medium">
+                                    ✅ Delivered to pharmacy
+                                  </p>
+                                ) : (
+                                  <p className="text-sm text-blue-600 mt-1">
+                                    🚚 On the way to pharmacy
+                                  </p>
+                                )}
+                              </div>
                             </div>
 
-                            <div className="bg-blue-50 rounded p-4 mb-4">
-                              <p className="font-medium text-blue-900">{request.medicine_name}</p>
-                              <p className="text-sm text-blue-700">{request.category}</p>
-                              <p className="text-blue-700 mt-1">Quantity Delivered: <span className="font-semibold">{request.quantity_requested} units</span></p>
+                            <div className={`rounded p-4 mb-4 ${
+                              request.delivery_status === "Delivered" || request.status === "Completed"
+                                ? "bg-green-50"
+                                : "bg-blue-50"
+                            }`}>
+                              <p className="font-medium text-gray-900">{request.medicine_name}</p>
+                              <p className="text-sm text-gray-700">{request.category}</p>
+                              <p className="text-gray-700 mt-1">
+                                Quantity: <span className="font-semibold">{request.quantity_requested} units</span>
+                              </p>
+                              {request.delivery_status === "Delivered" || request.status === "Completed" ? (
+                                <p className="text-green-700 mt-2 font-medium">
+                                  ✅ Stock updated in pharmacy inventory
+                                </p>
+                              ) : (
+                                <p className="text-blue-700 mt-2">
+                                  📦 Expected delivery soon
+                                </p>
+                              )}
                             </div>
 
-                            {request.status === "Accepted" && (
+                            {request.delivery_status === "Shipped" && (
                               <button
-                                onClick={() => handleCompleteDelivery(request.request_id)}
-                                className="w-full px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 flex items-center justify-center gap-2"
+                                onClick={() => handleMarkDelivered(request.request_id)}
+                                className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
                               >
                                 <CheckCircle size={20} />
                                 Mark as Delivered
