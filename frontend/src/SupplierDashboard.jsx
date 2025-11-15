@@ -15,20 +15,30 @@ import {
   Save,
   X,
   Search,
+  TrendingUp,
+  DollarSign,
+  ShoppingCart,
 } from "lucide-react";
 
 function SupplierDashboard() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user"));
-  const [activeTab, setActiveTab] = useState("requests");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
 
-  // State for stock requests
+  // State for data
   const [stockRequests, setStockRequests] = useState([]);
   const [supplierInventory, setSupplierInventory] = useState([]);
   const [supplierDetails, setSupplierDetails] = useState(null);
   const [availableMedicines, setAvailableMedicines] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [stats, setStats] = useState({
+    pending_requests: 0,
+    total_inventory_items: 0,
+    total_inventory_value: 0,
+    low_stock_items: 0,
+    completed_deliveries: 0
+  });
   
   // Edit supplier details state
   const [isEditingDetails, setIsEditingDetails] = useState(false);
@@ -52,6 +62,10 @@ function SupplierDashboard() {
   // Edit inventory state
   const [editingItem, setEditingItem] = useState(null);
 
+  // Notifications
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
   useEffect(() => {
     if (!user || user.role !== "Supplier") {
       navigate("/login");
@@ -63,19 +77,24 @@ function SupplierDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // First get supplier_id from user_id
+      // Get supplier details from user_id
       const supplierRes = await fetch(`http://localhost:5000/api/supplier/user/${user.id}`);
       const supplierData = await supplierRes.json();
       setSupplierDetails(supplierData);
       setEditedDetails({
         company_name: supplierData.company_name || "",
-        contact_number: supplierData.contact_number || "",
+        contact_number: supplierData.phone || "",
         address: supplierData.address || "",
       });
 
       const supplierId = supplierData.supplier_id;
 
-      // Load stock requests from pharmacists
+      // Load statistics
+      const statsRes = await fetch(`http://localhost:5000/api/supplier/${supplierId}/stats`);
+      const statsData = await statsRes.json();
+      setStats(statsData);
+
+      // Load stock requests
       const requestsRes = await fetch(`http://localhost:5000/api/supplier/${supplierId}/stock-requests`);
       const requestsData = await requestsRes.json();
       setStockRequests(requestsData);
@@ -90,10 +109,44 @@ function SupplierDashboard() {
       const medicinesData = await medicinesRes.json();
       setAvailableMedicines(medicinesData);
 
+      // Generate notifications
+      generateNotifications(requestsData, inventoryData);
+
     } catch (err) {
       console.error("Error loading data:", err);
+      alert("Failed to load dashboard data");
     }
     setLoading(false);
+  };
+
+  const generateNotifications = (requests, inventory) => {
+    const notifs = [];
+    
+    // Pending requests notifications
+    const pendingRequests = requests.filter(r => r.status === 'Pending');
+    if (pendingRequests.length > 0) {
+      notifs.push({
+        id: 'pending-requests',
+        type: 'request',
+        message: `You have ${pendingRequests.length} pending stock request${pendingRequests.length > 1 ? 's' : ''}`,
+        count: pendingRequests.length,
+        priority: 'high'
+      });
+    }
+
+    // Low stock notifications
+    const lowStockItems = inventory.filter(item => item.quantity_available <= item.reorder_level);
+    if (lowStockItems.length > 0) {
+      notifs.push({
+        id: 'low-stock',
+        type: 'warning',
+        message: `${lowStockItems.length} medicine${lowStockItems.length > 1 ? 's are' : ' is'} running low on stock`,
+        count: lowStockItems.length,
+        priority: 'medium'
+      });
+    }
+
+    setNotifications(notifs);
   };
 
   const handleSignOut = () => {
@@ -127,14 +180,14 @@ function SupplierDashboard() {
   };
 
   const handleRejectRequest = async (requestId) => {
-    if (!window.confirm("Are you sure you want to reject this request?")) {
-      return;
-    }
+    const reason = window.prompt("Please provide a reason for rejection (optional):");
+    if (reason === null) return; // User cancelled
 
     try {
       const response = await fetch(`http://localhost:5000/api/stock-requests/${requestId}/reject`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason || "Request rejected by supplier" }),
       });
 
       if (response.ok) {
@@ -150,7 +203,7 @@ function SupplierDashboard() {
   };
 
   const handleCompleteDelivery = async (requestId) => {
-    if (!window.confirm("Confirm that this delivery has been completed?")) {
+    if (!window.confirm("Confirm that this delivery has been completed? This will update inventory levels.")) {
       return;
     }
 
@@ -161,10 +214,11 @@ function SupplierDashboard() {
       });
 
       if (response.ok) {
-        alert("Delivery completed successfully!");
+        alert("Delivery completed successfully! Inventory has been updated.");
         loadData();
       } else {
-        alert("Failed to complete delivery");
+        const errorData = await response.json();
+        alert(errorData.error || "Failed to complete delivery");
       }
     } catch (err) {
       console.error("Error completing delivery:", err);
@@ -195,7 +249,7 @@ function SupplierDashboard() {
 
   const handleAddInventoryItem = async () => {
     if (!newInventoryItem.medicine_id || !newInventoryItem.quantity_available || !newInventoryItem.selling_price) {
-      alert("Please fill in all required fields");
+      alert("Please fill in all required fields (Medicine, Quantity, Selling Price)");
       return;
     }
 
@@ -210,7 +264,6 @@ function SupplierDashboard() {
         alert("Medicine added to inventory successfully!");
         setNewInventoryItem({
           medicine_id: "",
-
           quantity_available: "",
           reorder_level: "20",
           purchase_price: "",
@@ -272,25 +325,15 @@ function SupplierDashboard() {
     }
   };
 
-  const getPendingRequestsCount = () => {
-    return stockRequests.filter(req => req.status === "Pending").length;
-  };
-
-  const getTotalInventoryValue = () => {
-    return supplierInventory.reduce((total, item) => {
-      return total + (item.quantity_available * item.selling_price);
-    }, 0);
-  };
-
-  const getLowStockItems = () => {
-    return supplierInventory.filter(item => item.quantity_available <= item.reorder_level);
-  };
-
   // Filter inventory based on search
   const filteredInventory = supplierInventory.filter(item =>
     item.medicine_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.category?.toLowerCase().includes(searchTerm.toLowerCase()) 
   );
+
+  const getLowStockItems = () => {
+    return supplierInventory.filter(item => item.quantity_available <= item.reorder_level);
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -302,6 +345,18 @@ function SupplierDashboard() {
 
         <nav className="flex-1 p-4 space-y-2">
           <button
+            onClick={() => setActiveTab("dashboard")}
+            className={`w-full flex items-center gap-3 p-3 rounded-lg transition ${
+              activeTab === "dashboard"
+                ? "bg-white text-teal-600"
+                : "hover:bg-teal-500"
+            }`}
+          >
+            <TrendingUp size={20} />
+            <span>Dashboard</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab("requests")}
             className={`w-full flex items-center gap-3 p-3 rounded-lg transition ${
               activeTab === "requests"
@@ -309,11 +364,11 @@ function SupplierDashboard() {
                 : "hover:bg-teal-500"
             }`}
           >
-            <Bell size={20} />
+            <ShoppingCart size={20} />
             <span>Stock Requests</span>
-            {getPendingRequestsCount() > 0 && (
+            {stats.pending_requests > 0 && (
               <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                {getPendingRequestsCount()}
+                {stats.pending_requests}
               </span>
             )}
           </button>
@@ -327,7 +382,12 @@ function SupplierDashboard() {
             }`}
           >
             <Package size={20} />
-            <span>Medicine Inventory</span>
+            <span>Inventory</span>
+            {stats.low_stock_items > 0 && (
+              <span className="ml-auto bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                {stats.low_stock_items}
+              </span>
+            )}
           </button>
 
           <button
@@ -339,7 +399,7 @@ function SupplierDashboard() {
             }`}
           >
             <Truck size={20} />
-            <span>Delivery History</span>
+            <span>Deliveries</span>
           </button>
 
           <button
@@ -365,6 +425,7 @@ function SupplierDashboard() {
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-8">
+          {/* Header */}
           <div className="flex justify-between items-start mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -372,14 +433,61 @@ function SupplierDashboard() {
               </h1>
               <p className="text-gray-600">Manage your medicine supply operations</p>
             </div>
-            <button
-              onClick={() => setIsEditingDetails(true)}
-              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 flex items-center gap-2"
-            >
-              <User size={20} />
-              Edit Company Details
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Bell size={20} />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setIsEditingDetails(true)}
+                className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 flex items-center gap-2"
+              >
+                <User size={20} />
+                Edit Details
+              </button>
+            </div>
           </div>
+
+          {/* Notifications Dropdown */}
+          {showNotifications && notifications.length > 0 && (
+            <div className="mb-6 bg-white rounded-lg shadow-lg p-4 border-l-4 border-yellow-500">
+              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                <Bell size={20} className="text-yellow-600" />
+                Notifications
+              </h3>
+              <div className="space-y-2">
+                {notifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    className={`p-3 rounded-lg border ${
+                      notif.priority === 'high'
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-yellow-50 border-yellow-200'
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-gray-800">{notif.message}</p>
+                    <button
+                      onClick={() => {
+                        if (notif.type === 'request') setActiveTab('requests');
+                        if (notif.type === 'warning') setActiveTab('inventory');
+                        setShowNotifications(false);
+                      }}
+                      className="text-xs text-teal-600 hover:text-teal-800 mt-1"
+                    >
+                      View Details →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div className="text-center py-12">
@@ -388,6 +496,141 @@ function SupplierDashboard() {
             </div>
           ) : (
             <>
+              {/* Dashboard Tab */}
+              {activeTab === "dashboard" && (
+                <div>
+                  <h2 className="text-2xl font-bold mb-6">Dashboard Overview</h2>
+                  
+                  {/* Statistics Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div className="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Pending Requests</p>
+                          <p className="text-3xl font-bold text-gray-900">{stats.pending_requests}</p>
+                        </div>
+                        <ShoppingCart size={32} className="text-yellow-500" />
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-6 border-l-4 border-teal-500">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Inventory Items</p>
+                          <p className="text-3xl font-bold text-gray-900">{stats.total_inventory_items}</p>
+                        </div>
+                        <Package size={32} className="text-teal-500" />
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Total Value</p>
+                          <p className="text-3xl font-bold text-gray-900">
+                            Rs. {stats.total_inventory_value.toFixed(0)}
+                          </p>
+                        </div>
+                        <DollarSign size={32} className="text-green-500" />
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Low Stock Items</p>
+                          <p className="text-3xl font-bold text-gray-900">{stats.low_stock_items}</p>
+                        </div>
+                        <AlertCircle size={32} className="text-red-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Supplier Information */}
+                  <div className="bg-white rounded-lg shadow p-6 mb-6">
+                    <h3 className="text-xl font-semibold mb-4 text-teal-800">Company Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Company Name</p>
+                        <p className="font-medium text-gray-900">{supplierDetails?.company_name || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Contact Number</p>
+                        <p className="font-medium text-gray-900">{supplierDetails?.phone || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Email</p>
+                        <p className="font-medium text-gray-900">{supplierDetails?.email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Address</p>
+                        <p className="font-medium text-gray-900">{supplierDetails?.address || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">City</p>
+                        <p className="font-medium text-gray-900">{supplierDetails?.city || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Country</p>
+                        <p className="font-medium text-gray-900">{supplierDetails?.country || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recent Activity */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Recent Requests */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-lg font-semibold mb-4 text-teal-800">Recent Stock Requests</h3>
+                      {stockRequests.slice(0, 5).length === 0 ? (
+                        <p className="text-gray-500 text-sm">No recent requests</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {stockRequests.slice(0, 5).map(request => (
+                            <div key={request.request_id} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                              <div>
+                                <p className="font-medium text-sm">{request.medicine_name}</p>
+                                <p className="text-xs text-gray-600">{request.pharmacist_name}</p>
+                              </div>
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                request.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                request.status === 'Accepted' ? 'bg-blue-100 text-blue-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {request.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Low Stock Alerts */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-lg font-semibold mb-4 text-red-800">Low Stock Alerts</h3>
+                      {getLowStockItems().length === 0 ? (
+                        <p className="text-gray-500 text-sm">All items are well stocked</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {getLowStockItems().slice(0, 5).map(item => (
+                            <div key={item.inventory_id} className="flex justify-between items-center p-3 bg-red-50 rounded border border-red-200">
+                              <div>
+                                <p className="font-medium text-sm">{item.medicine_name}</p>
+                                <p className="text-xs text-gray-600">{item.category}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-semibold text-red-600">{item.quantity_available} left</p>
+                                <p className="text-xs text-gray-600">Reorder: {item.reorder_level}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Stock Requests Tab */}
               {activeTab === "requests" && (
                 <div>
@@ -414,6 +657,9 @@ function SupplierDashboard() {
                                 From: {request.pharmacist_name} • Pharmacy: {request.pharmacy_name}
                               </p>
                               <p className="text-sm text-gray-600">
+                                Contact: {request.pharmacist_email} • {request.pharmacist_phone}
+                              </p>
+                              <p className="text-sm text-gray-600">
                                 Date: {new Date(request.request_date).toLocaleDateString()}
                               </p>
                             </div>
@@ -435,7 +681,8 @@ function SupplierDashboard() {
                           <div className="bg-teal-50 rounded p-4 mb-4">
                             <h4 className="font-semibold mb-2 text-teal-800">Requested Medicine:</h4>
                             <p className="text-lg font-medium text-teal-900">{request.medicine_name}</p>
-                            <p className="text-teal-700">Quantity: {request.quantity_requested} units</p>
+                            <p className="text-sm text-teal-700">{request.category}</p>
+                            <p className="text-teal-700 mt-1">Quantity Requested: <span className="font-semibold">{request.quantity_requested} units</span></p>
                             {request.notes && (
                               <p className="text-sm text-teal-700 mt-2">
                                 <span className="font-semibold">Notes:</span> {request.notes}
@@ -485,9 +732,9 @@ function SupplierDashboard() {
                     <div>
                       <h2 className="text-2xl font-bold">Medicine Inventory</h2>
                       <p className="text-gray-600 mt-1">
-                        Total Value: Rs. {getTotalInventoryValue().toFixed(2)} | 
-                        Total Items: {supplierInventory.length} | 
-                        Low Stock: {getLowStockItems().length}
+                        Total Value: Rs. {stats.total_inventory_value.toFixed(2)} | 
+                        Total Items: {stats.total_inventory_items} | 
+                        Low Stock: {stats.low_stock_items}
                       </p>
                     </div>
                     <button
@@ -537,7 +784,6 @@ function SupplierDashboard() {
                             ))}
                           </select>
                         </div>
-
 
                         <div>
                           <label className="block text-sm font-medium mb-2 text-gray-700">
@@ -769,6 +1015,9 @@ function SupplierDashboard() {
                                   To: {request.pharmacist_name} • {request.pharmacy_name}
                                 </p>
                                 <p className="text-sm text-gray-600">
+                                  Contact: {request.pharmacist_email} • {request.pharmacist_phone}
+                                </p>
+                                <p className="text-sm text-gray-600">
                                   Date: {new Date(request.request_date).toLocaleDateString()}
                                 </p>
                               </div>
@@ -785,7 +1034,8 @@ function SupplierDashboard() {
 
                             <div className="bg-blue-50 rounded p-4 mb-4">
                               <p className="font-medium text-blue-900">{request.medicine_name}</p>
-                              <p className="text-blue-700">Quantity Delivered: {request.quantity_requested} units</p>
+                              <p className="text-sm text-blue-700">{request.category}</p>
+                              <p className="text-blue-700 mt-1">Quantity Delivered: <span className="font-semibold">{request.quantity_requested} units</span></p>
                             </div>
 
                             {request.status === "Accepted" && (
@@ -883,7 +1133,7 @@ function EditInventoryForm({ item, onSave, onCancel }) {
     reorder_level: item.reorder_level || "",
     purchase_price: item.purchase_price || "",
     selling_price: item.selling_price || "",
-    expiry_date: item.expiry_date || ""
+    expiry_date: item.expiry_date ? item.expiry_date.split('T')[0] : ""
   });
 
   const handleSave = () => {

@@ -998,137 +998,384 @@ app.put("/api/doctor/verify-prescription/:prescriptionId", async (req, res) => {
 });
 
 // =========================================================================
-// NEW SUPPLIER/INVENTORY ROUTES
+// SUPPLIER ROUTES
 // =========================================================================
 
-app.get("/api/medicines/categories", async (req, res) => {
+// Get supplier details by user_id
+app.get("/api/supplier/user/:userId", async (req, res) => {
+  const { userId } = req.params;
   try {
-    const query = `
-      SELECT DISTINCT category
-      FROM public.medicines
-      WHERE category IS NOT NULL AND category != ''
-      ORDER BY category;
-    `;
-    const { rows } = await pool.query(query);
-    // Returns an array of strings: ['Category A', 'Category B', ...]
-    res.json(rows.map(row => row.category));
-   } catch (err) {
-    console.error("Error fetching medicine categories:", err.message);
-    res.status(500).json({ error: "Failed to fetch medicine categories" });
+    console.log("Fetching supplier for user_id:", userId);
+    
+    const result = await pool.query(
+      `SELECT * FROM suppliers WHERE user_id = $1`,
+      [userId]
+    );
+    
+    console.log("Supplier query result:", result.rows);
+    
+    if (result.rows.length === 0) {
+      console.log("No supplier found for user_id:", userId);
+      return res.status(404).json({ error: "Supplier not found" });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching supplier:", err);
+    res.status(500).json({ error: "Failed to fetch supplier details", details: err.message });
   }
 });
 
-
-// Get medicines for a specific supplier (for the stock/inventory view)
-app.get("/api/supplier/:supplierId/medicines", async (req, res) => {
+// Get supplier's inventory with medicine details
+app.get("/api/supplier/:supplierId/inventory", async (req, res) => {
   const { supplierId } = req.params;
   try {
-  const query = `
-      SELECT medicine_id, supplier_id, name, category, description, price, stock, expiry_date
-      FROM public.medicines
-      WHERE supplier_id = $1
-      ORDER BY name;
-    `;
-    const { rows } = await pool.query(query, [supplierId]);
-    res.json(rows);
+    const result = await pool.query(
+      `SELECT si.*, m.name as medicine_name, m.category, m.description, m.image_url
+       FROM supplier_inventory si
+       JOIN medicines m ON si.medicine_id = m.medicine_id
+       WHERE si.supplier_id = $1
+       ORDER BY m.name`,
+      [supplierId]
+    );
+    res.json(result.rows);
   } catch (err) {
-    console.error("Error fetching supplier's medicines:", err.message);
-    res.status(500).json({ error: "Failed to fetch supplier's medicines" });
+    console.error("Error fetching supplier inventory:", err);
+    res.status(500).json({ error: "Failed to fetch inventory" });
   }
 });
 
-// Update medicine stock 
-app.put("/api/medicines/:medicineId/stock", async (req, res) => {
-  const { medicineId } = req.params;
-  const { stock, price } = req.body;
-
-  if (stock === undefined && price === undefined) {
-  return res.status(400).json({ error: "Missing stock or price data for update" });
-  }
-
-  const fields = [];
-  const values = [];
-  let paramIndex = 1;
-
-  if (stock !== undefined) {
-    fields.push(`stock = $${paramIndex++}`);
-     values.push(stock);
-   }
-
-  if (price !== undefined) {
-    fields.push(`price = $${paramIndex++}`);
-    values.push(price);
-  }
-
-  values.push(medicineId);
-
-   try {
-    const updateQuery = `
-      UPDATE public.medicines
-      SET ${fields.join(', ')}, updated_at = NOW()
-      WHERE medicine_id = $${paramIndex}
-      RETURNING *;
-    `;
-    const { rows } = await pool.query(updateQuery, values);
-
-    if (rows.length === 0) {
-    return res.status(404).json({ error: "Medicine not found" });
-   }
-
-    res.json(rows[0]);
-  } catch (err) {
-    console.error("Error updating medicine stock/price:", err.message);
-    res.status(500).json({ error: "Failed to update medicine" });
-  }
-});
-
-// Update an entire medicine record 
-app.put("/api/medicines/:medicineId", async (req, res) => {
-  const { medicineId } = req.params;
-  const { name, category, description, price, stock, expiry_date} = req.body;
-
+// Get stock requests for a specific supplier
+app.get("/api/supplier/:supplierId/stock-requests", async (req, res) => {
+  const { supplierId } = req.params;
   try {
-    const updateQuery = `
-      UPDATE public.medicines
-      SET name = $1, category = $2, description = $3, price = $4, stock = $5, expiry_date = $6, image_url = $7, updated_at = NOW()
-      WHERE medicine_id = $8
-      RETURNING *;
-    `;
-     const { rows } = await pool.query(updateQuery, [
-     name, category, description, price, stock, expiry_date, image_url, medicineId
-    ]);
+    const result = await pool.query(
+      `SELECT sr.*, m.name as medicine_name, m.category,
+              u.name as pharmacist_name, u.email as pharmacist_email, u.phone as pharmacist_phone
+       FROM stock_requests sr
+       JOIN medicines m ON sr.medicine_id = m.medicine_id
+       JOIN users u ON sr.pharmacist_id = u.user_id
+       WHERE sr.supplier_id = $1
+       ORDER BY 
+         CASE sr.status 
+           WHEN 'Pending' THEN 1 
+           WHEN 'Accepted' THEN 2 
+           WHEN 'Completed' THEN 3 
+           ELSE 4 
+         END,
+         sr.request_date DESC`,
+      [supplierId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching stock requests:", err);
+    res.status(500).json({ error: "Failed to fetch stock requests" });
+  }
+});
 
-      if (rows.length === 0) {
-      return res.status(404).json({ error: "Medicine not found" });
+// Accept a stock request
+app.put("/api/stock-requests/:requestId/accept", async (req, res) => {
+  const { requestId } = req.params;
+  const { supplier_id } = req.body;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get request details
+    const requestResult = await client.query(
+      `SELECT * FROM stock_requests WHERE request_id = $1`,
+      [requestId]
+    );
+    
+    if (requestResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Request not found" });
     }
 
-    res.json(rows[0]);
+    const request = requestResult.rows[0];
+
+    // Check if supplier has enough inventory
+    const inventoryResult = await client.query(
+      `SELECT * FROM supplier_inventory 
+       WHERE supplier_id = $1 AND medicine_id = $2`,
+      [supplier_id, request.medicine_id]
+    );
+
+    if (inventoryResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: "Medicine not found in your inventory" });
+    }
+
+    const inventory = inventoryResult.rows[0];
+
+    if (inventory.quantity_available < request.quantity_requested) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        error: `Insufficient stock. Available: ${inventory.quantity_available}, Requested: ${request.quantity_requested}` 
+      });
+    }
+
+    // Update request status
+    await client.query(
+      `UPDATE stock_requests SET status = 'Accepted' WHERE request_id = $1`,
+      [requestId]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: "Request accepted successfully" });
   } catch (err) {
-    console.error("Error updating medicine:", err.message);
-    res.status(500).json({ error: "Failed to update medicine" });
+    await client.query('ROLLBACK');
+    console.error("Error accepting request:", err);
+    res.status(500).json({ error: "Failed to accept request" });
+  } finally {
+    client.release();
   }
 });
 
-
-//Delete a medicine 
-app.delete("/api/medicines/:medicineId", async (req, res) => {
-  const { medicineId } = req.params;
+// Reject a stock request
+app.put("/api/stock-requests/:requestId/reject", async (req, res) => {
+  const { requestId } = req.params;
+  const { reason } = req.body;
+  
   try {
-    const deleteQuery = `
-      DELETE FROM public.medicines
-      WHERE medicine_id = $1
-      RETURNING *;
-   `;
-    const { rows } = await pool.query(deleteQuery, [medicineId]);
-
-    if (rows.length === 0) {
-     return res.status(404).json({ error: "Medicine not found" });
+    const result = await pool.query(
+      `UPDATE stock_requests 
+       SET status = 'Rejected', notes = COALESCE($2, notes)
+       WHERE request_id = $1 
+       RETURNING *`,
+      [requestId, reason]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Request not found" });
     }
-   
-    res.json({ message: "Medicine deleted successfully" });
+    
+    res.json(result.rows[0]);
   } catch (err) {
-    console.error("Error deleting medicine:", err.message);
-    res.status(500).json({ error: "Failed to delete medicine" });
+    console.error("Error rejecting request:", err);
+    res.status(500).json({ error: "Failed to reject request" });
+  }
+});
+
+// Complete delivery (mark as delivered)
+app.put("/api/stock-requests/:requestId/complete", async (req, res) => {
+  const { requestId } = req.params;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get request details
+    const requestResult = await client.query(
+      `SELECT * FROM stock_requests WHERE request_id = $1`,
+      [requestId]
+    );
+    
+    if (requestResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Request not found" });
+    }
+
+    const request = requestResult.rows[0];
+
+    // Update request status to Completed
+    await client.query(
+      `UPDATE stock_requests SET status = 'Completed' WHERE request_id = $1`,
+      [requestId]
+    );
+
+    // Reduce supplier inventory
+    await client.query(
+      `UPDATE supplier_inventory 
+       SET quantity_available = quantity_available - $1,
+           updated_at = NOW()
+       WHERE supplier_id = $2 AND medicine_id = $3`,
+      [request.quantity_requested, request.supplier_id, request.medicine_id]
+    );
+
+    // Update medicines table stock (for the pharmacist's inventory)
+    await client.query(
+      `UPDATE medicines 
+       SET stock = stock + $1
+       WHERE medicine_id = $2 AND supplier_id = $3`,
+      [request.quantity_requested, request.medicine_id, request.supplier_id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: "Delivery completed successfully" });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Error completing delivery:", err);
+    res.status(500).json({ error: "Failed to complete delivery" });
+  } finally {
+    client.release();
+  }
+});
+
+// Get available medicines (not yet in supplier's inventory)
+app.get("/api/medicines/available", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT medicine_id, name, category, description, image_url
+       FROM medicines
+       ORDER BY name`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching available medicines:", err);
+    res.status(500).json({ error: "Failed to fetch medicines" });
+  }
+});
+
+// Add medicine to supplier inventory
+app.post("/api/supplier/:supplierId/inventory", async (req, res) => {
+  const { supplierId } = req.params;
+  const { medicine_id, quantity_available, reorder_level, purchase_price, selling_price, expiry_date } = req.body;
+  
+  try {
+    // Check if medicine already exists in supplier's inventory
+    const existingResult = await pool.query(
+      `SELECT * FROM supplier_inventory 
+       WHERE supplier_id = $1 AND medicine_id = $2`,
+      [supplierId, medicine_id]
+    );
+
+    if (existingResult.rows.length > 0) {
+      return res.status(400).json({ error: "Medicine already exists in your inventory. Please update it instead." });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO supplier_inventory 
+       (supplier_id, medicine_id, quantity_available, reorder_level, purchase_price, selling_price, expiry_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [supplierId, medicine_id, quantity_available, reorder_level || 20, purchase_price || 0, selling_price, expiry_date]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("Error adding medicine to inventory:", err);
+    res.status(500).json({ error: "Failed to add medicine to inventory" });
+  }
+});
+
+// Update supplier inventory item
+app.put("/api/supplier/inventory/:inventoryId", async (req, res) => {
+  const { inventoryId } = req.params;
+  const { quantity_available, reorder_level, purchase_price, selling_price, expiry_date } = req.body;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE supplier_inventory 
+       SET quantity_available = $1,
+           reorder_level = $2,
+           purchase_price = $3,
+           selling_price = $4,
+           expiry_date = $5,
+           updated_at = NOW()
+       WHERE inventory_id = $6
+       RETURNING *`,
+      [quantity_available, reorder_level, purchase_price, selling_price, expiry_date, inventoryId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Inventory item not found" });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error updating inventory:", err);
+    res.status(500).json({ error: "Failed to update inventory" });
+  }
+});
+
+// Delete inventory item
+app.delete("/api/supplier/inventory/:inventoryId", async (req, res) => {
+  const { inventoryId } = req.params;
+  
+  try {
+    const result = await pool.query(
+      `DELETE FROM supplier_inventory WHERE inventory_id = $1 RETURNING *`,
+      [inventoryId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Inventory item not found" });
+    }
+    
+    res.json({ message: "Medicine removed from inventory successfully" });
+  } catch (err) {
+    console.error("Error deleting inventory item:", err);
+    res.status(500).json({ error: "Failed to delete inventory item" });
+  }
+});
+
+// Update supplier details
+app.put("/api/supplier/:supplierId", async (req, res) => {
+  const { supplierId } = req.params;
+  const { company_name, contact_number, address } = req.body;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE suppliers 
+       SET company_name = $1, phone = $2, address = $3
+       WHERE supplier_id = $4
+       RETURNING *`,
+      [company_name, contact_number, address, supplierId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Supplier not found" });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error updating supplier details:", err);
+    res.status(500).json({ error: "Failed to update supplier details" });
+  }
+});
+
+// Get supplier statistics/dashboard data
+app.get("/api/supplier/:supplierId/stats", async (req, res) => {
+  const { supplierId } = req.params;
+  
+  try {
+    // Get pending requests count
+    const pendingResult = await pool.query(
+      `SELECT COUNT(*) as count FROM stock_requests 
+       WHERE supplier_id = $1 AND status = 'Pending'`,
+      [supplierId]
+    );
+    
+    // Get total inventory value
+    const inventoryResult = await pool.query(
+      `SELECT 
+         COUNT(*) as total_items,
+         SUM(quantity_available * selling_price) as total_value,
+         COUNT(CASE WHEN quantity_available <= reorder_level THEN 1 END) as low_stock_count
+       FROM supplier_inventory 
+       WHERE supplier_id = $1`,
+      [supplierId]
+    );
+    
+    // Get completed deliveries count
+    const completedResult = await pool.query(
+      `SELECT COUNT(*) as count FROM stock_requests 
+       WHERE supplier_id = $1 AND status = 'Completed'`,
+      [supplierId]
+    );
+    
+    res.json({
+      pending_requests: parseInt(pendingResult.rows[0].count),
+      total_inventory_items: parseInt(inventoryResult.rows[0].total_items || 0),
+      total_inventory_value: parseFloat(inventoryResult.rows[0].total_value || 0),
+      low_stock_items: parseInt(inventoryResult.rows[0].low_stock_count || 0),
+      completed_deliveries: parseInt(completedResult.rows[0].count)
+    });
+  } catch (err) {
+    console.error("Error fetching supplier stats:", err);
+    res.status(500).json({ error: "Failed to fetch statistics" });
   }
 });
 
