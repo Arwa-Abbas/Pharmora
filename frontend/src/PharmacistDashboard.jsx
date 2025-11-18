@@ -15,6 +15,7 @@ import {
   AlertCircle,
   ClipboardList,
   BarChart3,
+  Download,
 } from "lucide-react";
 
 function PharmacistDashboard() {
@@ -64,20 +65,35 @@ function PharmacistDashboard() {
         setPharmacistDetails(pharmacistData);
       }
 
-      // Load medicines (from suppliers)
-      const medicinesRes = await fetch(`http://localhost:5000/api/medicines`);
-      const medicinesData = await medicinesRes.json();
-      setMedicines(medicinesData);
+      // Load medicines from medicines table with supplier info
+      const medicinesRes = await fetch(`http://localhost:5000/api/pharmacist/medicines`);
+      if (medicinesRes.ok) {
+        const medicinesData = await medicinesRes.json();
+        setMedicines(medicinesData);
+      } else {
+        console.error("Failed to fetch medicines");
+        setMedicines([]);
+      }
 
       // Load suppliers
       const suppliersRes = await fetch(`http://localhost:5000/api/suppliers`);
-      const suppliersData = await suppliersRes.json();
-      setSuppliers(suppliersData);
+      if (suppliersRes.ok) {
+        const suppliersData = await suppliersRes.json();
+        setSuppliers(suppliersData);
+      } else {
+        console.error("Failed to fetch suppliers");
+        setSuppliers([]);
+      }
 
       // Load pharmacist's stock requests
       const requestsRes = await fetch(`http://localhost:5000/api/pharmacist/${user.id}/stock-requests`);
-      const requestsData = await requestsRes.json();
-      setStockRequests(requestsData);
+      if (requestsRes.ok) {
+        const requestsData = await requestsRes.json();
+        setStockRequests(requestsData);
+      } else {
+        console.error("Failed to fetch stock requests");
+        setStockRequests([]);
+      }
 
       // Load stats
       const statsRes = await fetch(`http://localhost:5000/api/pharmacist/${user.id}/stats`);
@@ -88,7 +104,7 @@ function PharmacistDashboard() {
 
     } catch (err) {
       console.error("Error loading data:", err);
-      alert("Failed to load dashboard data");
+      alert("Failed to load dashboard data: " + err.message);
     }
     setLoading(false);
   };
@@ -109,8 +125,11 @@ function PharmacistDashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...requestData,
           pharmacist_id: user.id,
+          supplier_id: requestData.supplier_id,
+          medicine_id: requestData.medicine_id,
+          quantity_requested: parseInt(requestData.quantity_requested),
+          notes: requestData.notes || '',
           pharmacy_name: pharmacistDetails?.pharmacy_name || "My Pharmacy"
         }),
       });
@@ -125,6 +144,7 @@ function PharmacistDashboard() {
           notes: "",
           pharmacy_name: pharmacistDetails?.pharmacy_name || "My Pharmacy"
         });
+        setSelectedMedicine(null);
         loadData();
       } else {
         const errorData = await response.json();
@@ -133,6 +153,35 @@ function PharmacistDashboard() {
     } catch (err) {
       console.error("Error sending request:", err);
       alert("Failed to send request");
+    }
+  };
+
+  const handleAddToInventory = async (request) => {
+    if (!window.confirm(`Add ${request.quantity_requested} units of ${request.medicine_name} to your inventory?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/pharmacist/add-to-inventory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          medicine_id: request.medicine_id,
+          quantity: request.quantity_requested,
+          supplier_id: request.supplier_id
+        }),
+      });
+
+      if (response.ok) {
+        alert("Medicine added to inventory successfully!");
+        loadData();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Failed to add to inventory");
+      }
+    } catch (err) {
+      console.error("Error adding to inventory:", err);
+      alert("Failed to add to inventory");
     }
   };
 
@@ -162,7 +211,7 @@ function PharmacistDashboard() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar - Updated Turquoise/Blue Theme */}
+      {/* Sidebar */}
       <div className="w-64 bg-gradient-to-b from-teal-600 to-cyan-600 text-white flex flex-col">
         <div className="p-6 text-2xl font-bold border-b border-teal-500">
           Pharmora
@@ -220,11 +269,6 @@ function PharmacistDashboard() {
           >
             <Truck size={20} />
             <span>Deliveries</span>
-            {stockRequests.filter(req => req.delivery_status === 'Shipped').length > 0 && (
-              <span className="ml-auto bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                {stockRequests.filter(req => req.delivery_status === 'Shipped').length}
-              </span>
-            )}
           </button>
 
           <button
@@ -284,7 +328,7 @@ function PharmacistDashboard() {
                     <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-teal-500">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-600">Total Medicines</p>
+                          <p className="text-sm font-medium text-gray-600">Available Medicines</p>
                           <p className="text-2xl font-bold text-gray-900">{stats.total_medicines}</p>
                         </div>
                         <Package className="h-8 w-8 text-teal-500" />
@@ -314,7 +358,7 @@ function PharmacistDashboard() {
                     <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-red-500">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-600">Low Stock</p>
+                          <p className="text-sm font-medium text-gray-600">Low Stock Alerts</p>
                           <p className="text-2xl font-bold text-gray-900">{stats.low_stock_medicines}</p>
                         </div>
                         <AlertCircle className="h-8 w-8 text-red-500" />
@@ -374,7 +418,7 @@ function PharmacistDashboard() {
               {/* Available Medicines Tab */}
               {activeTab === "medicines" && (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6 text-gray-800">Medicines Available from Suppliers</h2>
+                  <h2 className="text-2xl font-bold mb-6 text-gray-800">Available Medicines from Suppliers</h2>
                   
                   {medicines.length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-xl shadow">
@@ -418,8 +462,14 @@ function PharmacistDashboard() {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-600">Supplier:</span>
-                              <span className="font-semibold">
-                                {suppliers.find(s => s.supplier_id === medicine.supplier_id)?.company_name || 'Unknown'}
+                              <span className="font-semibold text-blue-600">
+                                {medicine.supplier_name}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Contact:</span>
+                              <span className="font-medium">
+                                {medicine.supplier_phone}
                               </span>
                             </div>
                           </div>
@@ -428,9 +478,11 @@ function PharmacistDashboard() {
                             onClick={() => {
                               setSelectedMedicine(medicine);
                               setRequestData({
-                                ...requestData,
+                                supplier_id: medicine.supplier_id,
                                 medicine_id: medicine.medicine_id,
-                                supplier_id: medicine.supplier_id
+                                quantity_requested: "",
+                                notes: "",
+                                pharmacy_name: pharmacistDetails?.pharmacy_name || "My Pharmacy"
                               });
                               setShowRequestForm(true);
                             }}
@@ -447,10 +499,10 @@ function PharmacistDashboard() {
                 </div>
               )}
 
-                            {/* My Requests Tab */}
+              {/* My Requests Tab */}
               {activeTab === "requests" && (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6 text-gray-800">My Stock Requests</h2> {/* Fixed: Changed </h3> to </h2> */}
+                  <h2 className="text-2xl font-bold mb-6 text-gray-800">My Stock Requests</h2>
 
                   {stockRequests.length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-xl shadow">
@@ -486,11 +538,6 @@ function PharmacistDashboard() {
                               <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(request.status)}`}>
                                 {request.status}
                               </span>
-                              {request.delivery_status && (
-                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getDeliveryStatusColor(request.delivery_status)}`}>
-                                  {request.delivery_status}
-                                </span>
-                              )}
                             </div>
                           </div>
 
@@ -503,17 +550,21 @@ function PharmacistDashboard() {
                                 <span className="font-semibold">Notes:</span> {request.notes}
                               </p>
                             )}
-                            {request.tracking_info && (
-                              <p className="text-sm text-blue-700 mt-2">
-                                <span className="font-semibold">Tracking:</span> {request.tracking_info}
-                              </p>
-                            )}
                           </div>
 
                           {request.status === "Completed" && (
-                            <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg">
-                              <CheckCircle size={20} />
-                              <span className="font-medium">Delivered to your pharmacy</span>
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg flex-1">
+                                <CheckCircle size={20} />
+                                <span className="font-medium">Ready to add to your inventory</span>
+                              </div>
+                              <button
+                                onClick={() => handleAddToInventory(request)}
+                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
+                              >
+                                <Download size={20} />
+                                Add to Inventory
+                              </button>
                             </div>
                           )}
 
@@ -524,10 +575,10 @@ function PharmacistDashboard() {
                             </div>
                           )}
 
-                          {request.delivery_status === "Shipped" && (
-                            <div className="flex items-center gap-2 text-purple-600 bg-purple-50 p-3 rounded-lg">
-                              <Truck size={20} />
-                              <span className="font-medium">Order shipped - Track your delivery</span>
+                          {request.status === "Pending" && (
+                            <div className="flex items-center gap-2 text-yellow-600 bg-yellow-50 p-3 rounded-lg">
+                              <AlertCircle size={20} />
+                              <span className="font-medium">Waiting for supplier response</span>
                             </div>
                           )}
                         </div>
@@ -540,24 +591,24 @@ function PharmacistDashboard() {
               {/* Deliveries Tab */}
               {activeTab === "deliveries" && (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6 text-gray-800">Delivery Tracking</h2>
+                  <h2 className="text-2xl font-bold mb-6 text-gray-800">Completed Deliveries</h2>
 
-                  {stockRequests.filter(req => req.delivery_status).length === 0 ? (
+                  {stockRequests.filter(req => req.status === "Completed").length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-xl shadow">
                       <Truck size={64} className="mx-auto text-gray-400 mb-4" />
-                      <p className="text-gray-600">No delivery tracking available</p>
+                      <p className="text-gray-600">No completed deliveries yet</p>
                       <p className="text-sm text-gray-500 mt-2">
-                        Shipped orders will appear here for tracking
+                        Completed stock requests will appear here
                       </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {stockRequests
-                        .filter(req => req.delivery_status)
+                        .filter(req => req.status === "Completed")
                         .map((request) => (
                           <div
                             key={request.request_id}
-                            className="bg-white rounded-xl shadow-md p-6 border-l-4 border-teal-500"
+                            className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500"
                           >
                             <div className="flex justify-between items-start mb-4">
                               <div>
@@ -570,63 +621,38 @@ function PharmacistDashboard() {
                                 <p className="text-sm text-gray-600">
                                   Ordered: {new Date(request.request_date).toLocaleDateString()}
                                 </p>
-                                {request.shipped_date && (
+                                {request.delivery_date && (
                                   <p className="text-sm text-gray-600">
-                                    Shipped: {new Date(request.shipped_date).toLocaleDateString()}
-                                  </p>
-                                )}
-                                {request.delivered_date && (
-                                  <p className="text-sm text-gray-600">
-                                    Delivered: {new Date(request.delivered_date).toLocaleDateString()}
+                                    Delivered: {new Date(request.delivery_date).toLocaleDateString()}
                                   </p>
                                 )}
                               </div>
                               <div className="text-right space-y-2">
-                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(request.status)}`}>
-                                  {request.status}
-                                </span>
-                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getDeliveryStatusColor(request.delivery_status)}`}>
-                                  {request.delivery_status}
+                                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                                  Completed
                                 </span>
                               </div>
                             </div>
 
-                            <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-4 border border-teal-200">
+                            <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-lg p-4 border border-green-200">
                               <div className="flex justify-between items-center">
                                 <div>
-                                  <p className="font-medium text-teal-900">Quantity: {request.quantity_requested} units</p>
-                                  {request.tracking_info && (
-                                    <p className="text-sm text-blue-700 mt-1">
-                                      <span className="font-semibold">Tracking Info:</span> {request.tracking_info}
-                                    </p>
-                                  )}
+                                  <p className="font-medium text-green-900">Quantity: {request.quantity_requested} units</p>
+                                  <p className="text-sm text-green-700 mt-1">
+                                    Ready to be added to your pharmacy inventory
+                                  </p>
                                 </div>
-                                {request.delivery_status === 'Delivered' && (
-                                  <CheckCircle size={32} className="text-green-500" />
-                                )}
-                                {request.delivery_status === 'Shipped' && (
-                                  <Truck size={32} className="text-purple-500" />
-                                )}
+                                <CheckCircle size={32} className="text-green-500" />
                               </div>
                             </div>
 
-                            {/* Delivery Progress */}
-                            <div className="mt-4">
-                              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                                <span>Ordered</span>
-                                <span>Shipped</span>
-                                <span>Delivered</span>
-                              </div>
-                              <div className="flex items-center">
-                                <div className={`h-2 flex-1 rounded-full ${
-                                  request.delivery_status === 'Delivered' ? 'bg-green-500' : 
-                                  request.delivery_status === 'Shipped' ? 'bg-purple-500' : 'bg-gray-300'
-                                }`}></div>
-                                <div className={`h-2 flex-1 rounded-full ${
-                                  request.delivery_status === 'Delivered' ? 'bg-green-500' : 'bg-gray-300'
-                                }`}></div>
-                              </div>
-                            </div>
+                            <button
+                              onClick={() => handleAddToInventory(request)}
+                              className="w-full mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
+                            >
+                              <Download size={20} />
+                              Add to Pharmacy Inventory
+                            </button>
                           </div>
                         ))}
                     </div>
@@ -685,6 +711,20 @@ function PharmacistDashboard() {
                     </div>
                   )}
 
+                  {selectedMedicine && (
+                    <div className="bg-teal-50 p-3 rounded-lg">
+                      <p className="text-teal-800">
+                        <strong>Medicine:</strong> {selectedMedicine.name}
+                      </p>
+                      <p className="text-teal-800">
+                        <strong>Supplier:</strong> {selectedMedicine.supplier_name}
+                      </p>
+                      <p className="text-teal-800">
+                        <strong>Available Stock:</strong> {selectedMedicine.stock} units
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium mb-2 text-gray-700">
                       Quantity Needed <span className="text-red-500">*</span>
@@ -696,7 +736,13 @@ function PharmacistDashboard() {
                       placeholder="Enter quantity"
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                       min="1"
+                      max={selectedMedicine ? selectedMedicine.stock : undefined}
                     />
+                    {selectedMedicine && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        Maximum available: {selectedMedicine.stock} units
+                      </p>
+                    )}
                   </div>
 
                   <div>
