@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNotification } from "./NotificationContext";
 import {
   Package,
   Truck,
@@ -24,6 +25,7 @@ import {
 
 function SupplierDashboard() {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const user = JSON.parse(localStorage.getItem("user"));
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
@@ -117,7 +119,7 @@ function SupplierDashboard() {
 
     } catch (err) {
       console.error("Error loading data:", err);
-      alert("Failed to load dashboard data");
+      showNotification("Failed to load dashboard data", "error");
     }
     setLoading(false);
   };
@@ -219,7 +221,7 @@ function SupplierDashboard() {
     try {
       const request = stockRequests.find(r => r.request_id === requestId);
       if (!request) {
-        alert("Request not found");
+        showNotification("Request not found", "error");
         return;
       }
 
@@ -227,7 +229,7 @@ function SupplierDashboard() {
       const inventoryStatus = await checkInventoryStatus(request.medicine_id, request.quantity_requested);
       
       if (!inventoryStatus.hasEnough) {
-        alert(`Cannot accept request: ${inventoryStatus.message}`);
+        showNotification(`Cannot accept request: ${inventoryStatus.message}`, "warning");
         return;
       }
 
@@ -241,15 +243,15 @@ function SupplierDashboard() {
       });
 
       if (response.ok) {
-        alert("Request accepted successfully!");
+        showNotification("Request accepted successfully!", "success");
         await loadData(); // Reload to get updated data
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to accept request");
+        showNotification(errorData.error || "Failed to accept request", "error");
       }
     } catch (err) {
       console.error("Error accepting request:", err);
-      alert("Failed to accept request");
+      showNotification("Failed to accept request", "error");
     } finally {
       setProcessingRequest(null);
     }
@@ -264,19 +266,18 @@ function SupplierDashboard() {
     const response = await fetch(`http://localhost:5000/api/stock-requests/${requestId}/reject`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      // body: JSON.stringify({ reason: "Request rejected by supplier" }),
     });
 
     if (response.ok) {
-      alert("Request rejected!");
+      showNotification("Request rejected!", "success");
       await loadData();
     } else {
       const errorData = await response.json();
-      alert(errorData.error || "Failed to reject request");
+      showNotification(errorData.error || "Failed to reject request", "error");
     }
   } catch (err) {
     console.error("Error rejecting request:", err);
-    alert("Failed to reject request");
+    showNotification("Failed to reject request", "error");
   }
 };
 
@@ -291,15 +292,15 @@ function SupplierDashboard() {
       });
 
       if (response.ok) {
-        alert("Order marked as shipped!");
+        showNotification("Order marked as shipped!", "success");
         await loadData();
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to ship order");
+        showNotification(errorData.error || "Failed to ship order", "error");
       }
     } catch (err) {
       console.error("Error shipping order:", err);
-      alert("Failed to ship order");
+      showNotification("Failed to ship order", "error");
     }
   };
 
@@ -315,15 +316,15 @@ function SupplierDashboard() {
       });
 
       if (response.ok) {
-        alert("Order marked as delivered! Inventory updated.");
+        showNotification("Order marked as delivered! Inventory updated.", "success");
         await loadData();
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to mark as delivered");
+        showNotification(errorData.error || "Failed to mark as delivered", "error");
       }
     } catch (err) {
       console.error("Error marking as delivered:", err);
-      alert("Failed to mark as delivered");
+      showNotification("Failed to mark as delivered", "error");
     }
   };
 
@@ -336,21 +337,21 @@ function SupplierDashboard() {
       });
 
       if (response.ok) {
-        alert("Details updated successfully!");
+        showNotification("Details updated successfully!", "success");
         setIsEditingDetails(false);
         await loadData();
       } else {
-        alert("Failed to update details");
+        showNotification("Failed to update details", "error");
       }
     } catch (err) {
       console.error("Error updating details:", err);
-      alert("Failed to update details");
+      showNotification("Failed to update details", "error");
     }
   };
 
   const handleAddInventoryItem = async () => {
     if (!newInventoryItem.medicine_id || !newInventoryItem.quantity_available || !newInventoryItem.selling_price) {
-      alert("Please fill in all required fields (Medicine, Quantity, Selling Price)");
+      showNotification("Please fill in all required fields (Medicine, Quantity, Selling Price)", "warning");
       return;
     }
 
@@ -362,7 +363,7 @@ function SupplierDashboard() {
       });
 
       if (response.ok) {
-        alert("Medicine added to inventory successfully!");
+        showNotification("Medicine added to inventory successfully!", "success");
         setNewInventoryItem({
           medicine_id: "",
           quantity_available: "",
@@ -375,11 +376,11 @@ function SupplierDashboard() {
         await loadData();
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to add medicine to inventory");
+        showNotification(errorData.error || "Failed to add medicine to inventory", "error");
       }
     } catch (err) {
       console.error("Error adding medicine to inventory:", err);
-      alert("Failed to add medicine to inventory");
+      showNotification("Failed to add medicine to inventory", "error");
     }
   };
 
@@ -392,15 +393,15 @@ function SupplierDashboard() {
       });
 
       if (response.ok) {
-        alert("Inventory updated successfully!");
+        showNotification("Inventory updated successfully!", "success");
         setEditingItem(null);
         await loadData();
       } else {
-        alert("Failed to update inventory");
+        showNotification("Failed to update inventory", "error");
       }
     } catch (err) {
       console.error("Error updating inventory:", err);
-      alert("Failed to update inventory");
+      showNotification("Failed to update inventory", "error");
     }
   };
 
@@ -415,14 +416,14 @@ function SupplierDashboard() {
       });
 
       if (response.ok) {
-        alert("Medicine removed from inventory!");
+        showNotification("Medicine removed from inventory!", "success");
         await loadData();
       } else {
-        alert("Failed to remove medicine");
+        showNotification("Failed to remove medicine", "error");
       }
     } catch (err) {
       console.error("Error removing medicine:", err);
-      alert("Failed to remove medicine");
+      showNotification("Failed to remove medicine", "error");
     }
   };
 

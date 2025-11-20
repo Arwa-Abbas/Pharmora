@@ -1,6 +1,7 @@
 // frontend/src/App.jsx
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { NotificationProvider } from "./NotificationContext"; // Import NotificationProvider
 import Navbar from "./Navbar";
 import Home from "./Home";
 import Products from "./Products";
@@ -14,10 +15,11 @@ import SupplierDashboard from "./SupplierDashboard";
 import PharmacistDashboard from "./PharmacistDashboard";
 import AdminDashboard from "./AdminDashboard";
 import Cart from "./Cart";
+import "./notifications.css"; // Import the notifications CSS
 
 function Layout({ children }) {
   const location = useLocation();
-  const hideNavbarOn = ["/login", "/patient-dashboard", "/doctor-dashboard", "/supplier-dashboard", , "/pharmacist-dashboard", "/admin-dashboard"];
+  const hideNavbarOn = ["/login", "/patient-dashboard", "/doctor-dashboard", "/supplier-dashboard", "/pharmacist-dashboard", "/admin-dashboard"];
 
   return (
     <>
@@ -31,24 +33,26 @@ function Layout({ children }) {
 
 function App() {
   return (
-    <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/suppliers" element={<Suppliers />} />
-          <Route path="/doctors" element={<Doctors />} />
-          <Route path="/pharmacists" element={<Pharmacists />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/patient-dashboard" element={<PatientDashboard />} />
-          <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
-          <Route path="/supplier-dashboard" element={<SupplierDashboard />} />
-          <Route path="/pharmacist-dashboard" element={<PharmacistDashboard />} />
-          <Route path="/admin-dashboard" element={<AdminDashboard />} />
-          <Route path="/cart" element={<Cart />} />
-        </Routes>
-      </Layout>
-    </Router>
+    <NotificationProvider> {/* Wrap entire app with NotificationProvider */}
+      <Router>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/suppliers" element={<Suppliers />} />
+            <Route path="/doctors" element={<Doctors />} />
+            <Route path="/pharmacists" element={<Pharmacists />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/patient-dashboard" element={<PatientDashboard />} />
+            <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
+            <Route path="/supplier-dashboard" element={<SupplierDashboard />} />
+            <Route path="/pharmacist-dashboard" element={<PharmacistDashboard />} />
+            <Route path="/admin-dashboard" element={<AdminDashboard />} />
+            <Route path="/cart" element={<Cart />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </NotificationProvider>
   );
 }
 
