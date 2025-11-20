@@ -205,7 +205,7 @@ function SupplierDashboard() {
       return { 
         hasEnough: true, 
         available: inventoryItem.quantity_available, 
-        message: `✅ Sufficient stock available: ${inventoryItem.quantity_available} units` 
+        message: `Sufficient stock available: ${inventoryItem.quantity_available} units` 
       };
     } catch (err) {
       console.error("Error checking inventory:", err);
@@ -256,27 +256,29 @@ function SupplierDashboard() {
   };
 
   const handleRejectRequest = async (requestId) => {
-    const reason = window.prompt("Please provide a reason for rejection (optional):");
-    
-    try {
-      const response = await fetch(`http://localhost:5000/api/stock-requests/${requestId}/reject`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: reason || "Request rejected by supplier" }),
-      });
+  if (!window.confirm("Are you sure you want to reject this request?")) {
+    return;
+  }
 
-      if (response.ok) {
-        alert("Request rejected!");
-        await loadData();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || "Failed to reject request");
-      }
-    } catch (err) {
-      console.error("Error rejecting request:", err);
-      alert("Failed to reject request");
+  try {
+    const response = await fetch(`http://localhost:5000/api/stock-requests/${requestId}/reject`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      // body: JSON.stringify({ reason: "Request rejected by supplier" }),
+    });
+
+    if (response.ok) {
+      alert("Request rejected!");
+      await loadData();
+    } else {
+      const errorData = await response.json();
+      alert(errorData.error || "Failed to reject request");
     }
-  };
+  } catch (err) {
+    console.error("Error rejecting request:", err);
+    alert("Failed to reject request");
+  }
+};
 
   const handleShipOrder = async (requestId) => {
     const trackingInfo = window.prompt("Enter tracking information (optional):");
@@ -681,13 +683,6 @@ function SupplierDashboard() {
                         >
                           <ShoppingCart className="h-5 w-5 text-blue-600 inline mr-2" />
                           <span className="font-medium text-blue-800">View Pending Requests</span>
-                        </button>
-                        <button
-                          onClick={() => setShowAddMedicine(true)}
-                          className="w-full text-left p-4 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
-                        >
-                          <Plus className="h-5 w-5 text-teal-600 inline mr-2" />
-                          <span className="font-medium text-teal-800">Add New Medicine</span>
                         </button>
                         <button
                           onClick={() => setActiveTab("deliveries")}
@@ -1301,8 +1296,8 @@ function DeliveryCard({ request, onDeliver }) {
         <div className="flex-1">
           <h3 className="font-semibold text-lg">
             {request.delivery_status === "Delivered" || request.status === "Completed"
-              ? "✅ Delivered" 
-              : "🚚 In Transit"} - Request #{request.request_id}
+              ? "Delivered" 
+              : "In Transit"} - Request #{request.request_id}
           </h3>
           <p className="text-sm text-gray-600">
             To: {request.pharmacist_name} • {request.pharmacy_name}
@@ -1318,17 +1313,17 @@ function DeliveryCard({ request, onDeliver }) {
           <div className="mt-3 space-y-1">
             {request.shipped_date && (
               <p className="text-sm text-blue-600">
-                📦 Shipped on: {new Date(request.shipped_date).toLocaleDateString()}
+                Shipped on: {new Date(request.shipped_date).toLocaleDateString()}
               </p>
             )}
             {request.delivery_date && (
               <p className="text-sm text-green-600">
-                ✅ Delivered on: {new Date(request.delivery_date).toLocaleDateString()}
+                Delivered on: {new Date(request.delivery_date).toLocaleDateString()}
               </p>
             )}
             {request.tracking_info && (
               <p className="text-sm text-gray-600">
-                📋 Tracking: {request.tracking_info}
+                Tracking: {request.tracking_info}
               </p>
             )}
           </div>
@@ -1347,36 +1342,37 @@ function DeliveryCard({ request, onDeliver }) {
           </span>
           {request.delivery_status === "Delivered" || request.status === "Completed" ? (
             <p className="text-sm text-green-600 mt-1 font-medium">
-              ✅ Delivered to pharmacy
+              Delivered to pharmacy
             </p>
           ) : (
             <p className="text-sm text-blue-600 mt-1">
-              🚚 On the way to pharmacy
+              On the way to pharmacy
             </p>
           )}
         </div>
       </div>
 
-      <div className={`rounded p-4 mb-4 ${
+          <div
+      className={`rounded p-4 mb-4 ${
         request.delivery_status === "Delivered" || request.status === "Completed"
           ? "bg-green-50"
           : "bg-blue-50"
-      }`}>
-        <p className="font-medium text-gray-900">{request.medicine_name}</p>
-        <p className="text-sm text-gray-700">{request.category}</p>
-        <p className="text-gray-700 mt-1">
-          Quantity: <span className="font-semibold">{request.quantity_requested} units</span>
-        </p>
-        {request.delivery_status === "Delivered" || request.status === "Completed" ? (
-          <p className="text-green-700 mt-2 font-medium">
-            ✅ Stock updated in pharmacy inventory
-          </p>
-        ) : (
-          <p className="text-blue-700 mt-2">
-            📦 Expected delivery soon
-          </p>
-        )}
-      </div>
+      }`}
+    >
+      <p className="font-medium text-gray-900">{request.medicine_name}</p>
+      <p className="text-sm text-gray-700">{request.category}</p>
+
+      <p className="text-gray-700 mt-1">
+        Quantity: <span className="font-semibold">{request.quantity_requested} units</span>
+      </p>
+
+      {request.delivery_status === "Delivered" || request.status === "Completed" ? (
+        <></> // removed the text completely
+      ) : (
+        <p className="text-blue-700 mt-2">Expected delivery soon</p>
+      )}
+    </div>
+
 
       {request.delivery_status === "Shipped" && onDeliver && (
         <button

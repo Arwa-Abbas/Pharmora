@@ -36,6 +36,10 @@ function PharmacistDashboard() {
     low_stock_medicines: 0
   });
 
+  // Notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
   // Request state
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [selectedMedicine, setSelectedMedicine] = useState(null);
@@ -90,6 +94,8 @@ function PharmacistDashboard() {
       if (requestsRes.ok) {
         const requestsData = await requestsRes.json();
         setStockRequests(requestsData);
+        // Generate notifications after loading requests
+        generateNotifications(requestsData);
       } else {
         console.error("Failed to fetch stock requests");
         setStockRequests([]);
@@ -157,37 +163,107 @@ function PharmacistDashboard() {
   };
 
   const handleAddToInventory = async (request) => {
-    if (!window.confirm(`Add ${request.quantity_requested} units of ${request.medicine_name} to your inventory?`)) {
-      return;
-    }
+  if (!window.confirm(`Add ${request.quantity_requested} units of ${request.medicine_name} to your pharmacy inventory?`)) {
+    return;
+  }
 
-    try {
-      const response = await fetch(`http://localhost:5000/api/pharmacist/add-to-inventory`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          medicine_id: request.medicine_id,
-          quantity: request.quantity_requested,
-          supplier_id: request.supplier_id
-        }),
+  try {
+    const response = await fetch(`http://localhost:5000/api/pharmacist/add-to-inventory`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        medicine_id: request.medicine_id,
+        quantity: request.quantity_requested,
+        supplier_id: request.supplier_id,
+        request_id: request.request_id  // Add this to verify it's a completed delivery
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      alert(result.message || "Medicine added to inventory successfully!");
+      loadData(); // Reload to refresh the data
+    } else {
+      const errorData = await response.json();
+      alert(errorData.error || "Failed to add to inventory");
+    }
+  } catch (err) {
+    console.error("Error adding to inventory:", err);
+    alert("Failed to add to inventory: " + err.message);
+  }
+};
+
+  const generateNotifications = (requests) => {
+    const notifs = [];
+    
+    // Pending requests notifications
+    const pendingRequests = requests.filter(r => r.status === 'Pending');
+    if (pendingRequests.length > 0) {
+      notifs.push({
+        id: 'pending-requests',
+        type: 'request',
+        message: `You have ${pendingRequests.length} pending stock request${pendingRequests.length > 1 ? 's' : ''} waiting for supplier response`,
+        count: pendingRequests.length,
+        priority: 'medium'
       });
-
-      if (response.ok) {
-        alert("Medicine added to inventory successfully!");
-        loadData();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || "Failed to add to inventory");
-      }
-    } catch (err) {
-      console.error("Error adding to inventory:", err);
-      alert("Failed to add to inventory");
     }
+
+    // Accepted requests notifications
+    const acceptedRequests = requests.filter(r => r.status === 'Accepted' && r.delivery_status === 'NotShipped');
+    if (acceptedRequests.length > 0) {
+      notifs.push({
+        id: 'accepted-requests',
+        type: 'info',
+        message: `${acceptedRequests.length} request${acceptedRequests.length > 1 ? 's have' : ' has'} been accepted by supplier`,
+        count: acceptedRequests.length,
+        priority: 'medium'
+      });
+    }
+
+    // Shipped requests notifications
+    const shippedRequests = requests.filter(r => r.delivery_status === 'Shipped');
+    if (shippedRequests.length > 0) {
+      notifs.push({
+        id: 'shipped-requests',
+        type: 'delivery',
+        message: `${shippedRequests.length} order${shippedRequests.length > 1 ? 's are' : ' is'} in transit`,
+        count: shippedRequests.length,
+        priority: 'high'
+      });
+    }
+
+    // Completed requests notifications (ready to add to inventory)
+    const completedRequests = requests.filter(r => r.status === 'Completed' && r.delivery_status === 'Delivered');
+    if (completedRequests.length > 0) {
+      notifs.push({
+        id: 'completed-requests',
+        type: 'success',
+        message: `${completedRequests.length} delivery${completedRequests.length > 1 ? 's are' : ' is'} ready to add to your inventory`,
+        count: completedRequests.length,
+        priority: 'high'
+      });
+    }
+
+    setNotifications(notifs);
   };
 
   const getSupplierMedicines = (supplierId) => {
-    return medicines.filter(med => med.supplier_id === parseInt(supplierId));
-  };
+  if (!supplierId) return [];
+  
+  // Convert supplierId to number for comparison
+  const supplierIdNum = parseInt(supplierId);
+  console.log("Filtering medicines for supplier:", supplierIdNum);
+  console.log("All medicines:", medicines);
+  
+  const supplierMedicines = medicines.filter(med => {
+    // Ensure we're comparing numbers
+    const medSupplierId = parseInt(med.supplier_id);
+    return medSupplierId === supplierIdNum;
+  });
+  
+  console.log("Filtered medicines:", supplierMedicines);
+  return supplierMedicines;
+};
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -269,6 +345,11 @@ function PharmacistDashboard() {
           >
             <Truck size={20} />
             <span>Deliveries</span>
+            {stockRequests.filter(req => req.delivery_status === "Shipped" || req.status === "Completed").length > 0 && (
+              <span className="ml-auto bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                {stockRequests.filter(req => req.delivery_status === "Shipped" || req.status === "Completed").length}
+              </span>
+            )}
           </button>
 
           <button
@@ -302,14 +383,61 @@ function PharmacistDashboard() {
               </h1>
               <p className="text-gray-600">Pharmacy Inventory Management</p>
             </div>
-            <button
-              onClick={() => setShowRequestForm(true)}
-              className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg hover:from-teal-600 hover:to-cyan-600 flex items-center gap-2 shadow-md transition-all"
-            >
-              <Plus size={20} />
-              Request Stock
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Bell size={20} />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setShowRequestForm(true)}
+                className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg hover:from-teal-600 hover:to-cyan-600 flex items-center gap-2 shadow-md transition-all"
+              >
+                <Plus size={20} />
+                Request Stock
+              </button>
+            </div>
           </div>
+
+          {/* Notifications Dropdown */}
+          {showNotifications && notifications.length > 0 && (
+            <div className="mb-6 bg-white rounded-lg shadow-lg p-4 border-l-4 border-teal-500">
+              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                <Bell size={20} className="text-teal-600" />
+                Notifications
+              </h3>
+              <div className="space-y-2">
+                {notifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    className={`p-3 rounded-lg border ${
+                      notif.priority === 'high'
+                        ? 'bg-teal-50 border-teal-200'
+                        : 'bg-blue-50 border-blue-200'
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-gray-800">{notif.message}</p>
+                    <button
+                      onClick={() => {
+                        if (notif.type === 'delivery' || notif.type === 'success') setActiveTab('deliveries');
+                        if (notif.type === 'request') setActiveTab('requests');
+                        setShowNotifications(false);
+                      }}
+                      className="text-xs text-teal-600 hover:text-teal-800 mt-1"
+                    >
+                      View Details →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div className="text-center py-12">
@@ -514,7 +642,9 @@ function PharmacistDashboard() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {stockRequests.map((request) => (
+                      {stockRequests
+                        .filter(request => request.status !== 'Completed')
+                        .map((request) => (
                         <div
                           key={request.request_id}
                           className="bg-white rounded-xl shadow-md p-6 border-l-4 border-teal-500"
@@ -533,6 +663,18 @@ function PharmacistDashboard() {
                               <p className="text-sm text-gray-600">
                                 Date: {new Date(request.request_date).toLocaleDateString()}
                               </p>
+                              {request.delivery_status && (
+                                <div className="mt-2">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    request.delivery_status === 'NotShipped' ? 'bg-gray-100 text-gray-700' :
+                                    request.delivery_status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
+                                    request.delivery_status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    Delivery: {request.delivery_status}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                             <div className="text-right space-y-2">
                               <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(request.status)}`}>
@@ -552,22 +694,6 @@ function PharmacistDashboard() {
                             )}
                           </div>
 
-                          {request.status === "Completed" && (
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg flex-1">
-                                <CheckCircle size={20} />
-                                <span className="font-medium">Ready to add to your inventory</span>
-                              </div>
-                              <button
-                                onClick={() => handleAddToInventory(request)}
-                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
-                              >
-                                <Download size={20} />
-                                Add to Inventory
-                              </button>
-                            </div>
-                          )}
-
                           {request.status === "Accepted" && (
                             <div className="flex items-center gap-2 text-blue-600 bg-blue-50 p-3 rounded-lg">
                               <Truck size={20} />
@@ -581,6 +707,13 @@ function PharmacistDashboard() {
                               <span className="font-medium">Waiting for supplier response</span>
                             </div>
                           )}
+
+                          {request.status === "Rejected" && (
+                            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
+                              <AlertCircle size={20} />
+                              <span className="font-medium">Request was rejected by supplier</span>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -591,70 +724,160 @@ function PharmacistDashboard() {
               {/* Deliveries Tab */}
               {activeTab === "deliveries" && (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6 text-gray-800">Completed Deliveries</h2>
+                  <h2 className="text-2xl font-bold mb-6 text-gray-800">Delivery Tracking</h2>
 
-                  {stockRequests.filter(req => req.status === "Completed").length === 0 ? (
+                  {stockRequests.filter(req => req.delivery_status === "Shipped" || req.status === "Completed").length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-xl shadow">
                       <Truck size={64} className="mx-auto text-gray-400 mb-4" />
-                      <p className="text-gray-600">No completed deliveries yet</p>
+                      <p className="text-gray-600">No active or completed deliveries</p>
                       <p className="text-sm text-gray-500 mt-2">
-                        Completed stock requests will appear here
+                        Shipped orders and completed deliveries will appear here
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      {stockRequests
-                        .filter(req => req.status === "Completed")
-                        .map((request) => (
-                          <div
-                            key={request.request_id}
-                            className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500"
-                          >
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <h3 className="font-semibold text-lg text-gray-900">
-                                  {request.medicine_name}
-                                </h3>
-                                <p className="text-sm text-gray-600">
-                                  Request #{request.request_id} • {request.supplier_name}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  Ordered: {new Date(request.request_date).toLocaleDateString()}
-                                </p>
-                                {request.delivery_date && (
-                                  <p className="text-sm text-gray-600">
-                                    Delivered: {new Date(request.delivery_date).toLocaleDateString()}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="text-right space-y-2">
-                                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
-                                  Completed
-                                </span>
-                              </div>
-                            </div>
+                    <div className="space-y-6">
+                      {/* In Transit */}
+                      {stockRequests.filter(req => req.delivery_status === "Shipped").length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold mb-4 text-blue-700 flex items-center gap-2">
+                            <Truck size={20} />
+                            In Transit ({stockRequests.filter(req => req.delivery_status === "Shipped").length})
+                          </h3>
+                          <div className="space-y-4">
+                            {stockRequests
+                              .filter(req => req.delivery_status === "Shipped")
+                              .map((request) => (
+                                <div
+                                  key={request.request_id}
+                                  className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500"
+                                >
+                                  <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                      <h3 className="font-semibold text-lg text-gray-900">
+                                        {request.medicine_name}
+                                      </h3>
+                                      <p className="text-sm text-gray-600">
+                                        Request #{request.request_id} • {request.supplier_name}
+                                      </p>
+                                      <p className="text-sm text-gray-600">
+                                        Ordered: {new Date(request.request_date).toLocaleDateString()}
+                                      </p>
+                                      {request.shipped_date && (
+                                        <p className="text-sm text-blue-600">
+                                          Shipped on: {new Date(request.shipped_date).toLocaleDateString()}
+                                        </p>
+                                      )}
+                                      {request.tracking_info && (
+                                        <p className="text-sm text-gray-600">
+                                          Tracking: {request.tracking_info}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="text-right space-y-2">
+                                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
+                                        In Transit
+                                      </span>
+                                    </div>
+                                  </div>
 
-                            <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-lg p-4 border border-green-200">
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <p className="font-medium text-green-900">Quantity: {request.quantity_requested} units</p>
-                                  <p className="text-sm text-green-700 mt-1">
-                                    Ready to be added to your pharmacy inventory
-                                  </p>
+                                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                    <div className="flex justify-between items-center">
+                                      <div>
+                                        <p className="font-medium text-blue-900">Quantity: {request.quantity_requested} units</p>
+                                        <p className="text-sm text-blue-700 mt-1">
+                                          Your order is on the way
+                                        </p>
+                                      </div>
+                                      <Truck size={32} className="text-blue-500" />
+                                    </div>
+                                  </div>
                                 </div>
-                                <CheckCircle size={32} className="text-green-500" />
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={() => handleAddToInventory(request)}
-                              className="w-full mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
-                            >
-                              <Download size={20} />
-                              Add to Pharmacy Inventory
-                            </button>
+                              ))}
                           </div>
-                        ))}
+                        </div>
+                      )}
+
+                      {/* Completed Deliveries */}
+{stockRequests.filter(req => (req.status === 'Completed' || req.status === 'Processed') && req.delivery_status === 'Delivered').length > 0 && (
+  <div>
+    <h3 className="text-lg font-semibold mb-4 text-green-700 flex items-center gap-2">
+      <CheckCircle size={20} />
+      Completed Deliveries ({stockRequests.filter(req => (req.status === 'Completed' || req.status === 'Processed') && req.delivery_status === 'Delivered').length})
+    </h3>
+    <div className="space-y-4">
+      {stockRequests
+        .filter(req => (req.status === 'Completed' || req.status === 'Processed') && req.delivery_status === 'Delivered')
+        .map((request) => (
+          <div
+            key={request.request_id}
+            className={`bg-white rounded-xl shadow-md p-6 border-l-4 ${
+              request.status === 'Processed' ? 'border-blue-500' : 'border-green-500'
+            }`}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="font-semibold text-lg text-gray-900">
+                  {request.medicine_name}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Request #{request.request_id} • {request.supplier_name}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Ordered: {new Date(request.request_date).toLocaleDateString()}
+                </p>
+                {request.delivery_date && (
+                  <p className="text-sm text-green-600">
+                    Delivered on: {new Date(request.delivery_date).toLocaleDateString()}
+                  </p>
+                )}
+                {request.status === 'Processed' && (
+                  <p className="text-sm text-blue-600 font-medium">
+                    ✓ Added to pharmacy inventory
+                  </p>
+                )}
+              </div>
+              <div className="text-right space-y-2">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  request.status === 'Processed' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                }`}>
+                  {request.status}
+                </span>
+              </div>
+            </div>
+
+            <div className={`rounded p-4 mb-4 ${
+              request.status === 'Processed' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium text-gray-900">Quantity: {request.quantity_requested} units</p>
+                  <p className={`text-sm mt-1 ${
+                    request.status === 'Processed' ? 'text-blue-700' : 'text-green-700'
+                  }`}>
+                    {request.status === 'Processed' 
+                      ? '✓ Successfully added to pharmacy inventory' 
+                      : 'Ready to be added to your pharmacy inventory'}
+                  </p>
+                </div>
+                <CheckCircle size={32} className={request.status === 'Processed' ? 'text-blue-500' : 'text-green-500'} />
+              </div>
+            </div>
+
+            {/* Only show the button if not already processed */}
+            {request.status !== 'Processed' && (
+              <button
+                onClick={() => handleAddToInventory(request)}
+                className="w-full mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
+              >
+                <Download size={20} />
+                Add to Pharmacy Inventory
+              </button>
+            )}
+          </div>
+        ))}
+    </div>
+  </div>
+)}
                     </div>
                   )}
                 </div>

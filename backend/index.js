@@ -156,13 +156,40 @@ app.get('/api/doctors', async (req, res) => {
 });
 
 // Get all pharmacists
-app.get('/api/pharmacists', async (req, res) => {
+// Get all pharmacists - FIXED VERSION
+app.get("/api/pharmacists", async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM users WHERE role = $1', ['pharmacist']);
+    console.log("Fetching pharmacists...");
+    
+    const result = await pool.query(
+      `SELECT 
+          p.user_id,
+          p.first_name,
+          p.last_name,
+          p.email,
+          p.phone,
+          p.address,
+          p.city,
+          p.country,
+          p.pharmacy_name,
+          p.pharmacy_license,
+          u.name as full_name
+       FROM pharmacists p
+       JOIN users u ON p.user_id = u.user_id
+       ORDER BY p.first_name, p.last_name`
+    );
+    
+    console.log(`Found ${result.rows.length} pharmacists`);
+    
+    if (result.rows.length === 0) {
+      console.log("No pharmacists found in database");
+      return res.json([]);
+    }
+    
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch pharmacists' });
+    console.error("Error fetching pharmacists:", err);
+    res.status(500).json({ error: 'Failed to fetch pharmacists: ' + err.message });
   }
 });
 
@@ -1116,34 +1143,130 @@ app.get("/api/pharmacist/:pharmacistId/delivered-requests", async (req, res) => 
 
 // Add medicine to pharmacist's inventory
 app.post("/api/pharmacist/add-to-inventory", async (req, res) => {
-  const { medicine_id, quantity, supplier_id } = req.body;
+  const { medicine_id, quantity, supplier_id, request_id } = req.body;
   
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    // First, verify the stock request exists and is completed
+    const requestCheck = await client.query(
+      `SELECT * FROM stock_requests 
+       WHERE request_id = $1 AND status = 'Completed' AND delivery_status = 'Delivered'`,
+      [request_id]
+    );
+    
+    if (requestCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: "Completed delivery not found or already processed" });
+    }
+
+    const stockRequest = requestCheck.rows[0];
+
+    // Get the selling price and expiry date from supplier_inventory
+    const supplierInventoryCheck = await client.query(
+      `SELECT selling_price, expiry_date FROM supplier_inventory 
+       WHERE medicine_id = $1 AND supplier_id = $2`,
+      [medicine_id, supplier_id]
+    );
+    
+    if (supplierInventoryCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Medicine not found in supplier inventory" });
+    }
+
+    const supplierItem = supplierInventoryCheck.rows[0];
+    const sellingPrice = supplierItem.selling_price;
+    const expiryDate = supplierItem.expiry_date;
+
+    // Check if the medicine exists for this supplier in medicines table
+    const medicineCheck = await client.query(
+      `SELECT * FROM medicines WHERE medicine_id = $1 AND supplier_id = $2`,
+      [medicine_id, supplier_id]
+    );
+    
+    if (medicineCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Medicine not found for this supplier" });
+    }
+
+    // Update the medicine stock, price, AND expiry date
+    const result = await client.query(
       `UPDATE medicines 
-       SET stock = stock + $1
+       SET stock = stock + $1,
+           price = $4,
+           expiry_date = $5
        WHERE medicine_id = $2 AND supplier_id = $3
        RETURNING *`,
-      [quantity, medicine_id, supplier_id]
+      [quantity, medicine_id, supplier_id, sellingPrice, expiryDate]
     );
     
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: "Medicine not found" });
     }
+
+    // Change status to 'Processed' to prevent duplicate processing
+    await client.query(
+      `UPDATE stock_requests 
+       SET status = 'Processed',
+           notes = COALESCE(notes, '') || ' | Added to pharmacy inventory on ' || CURRENT_TIMESTAMP
+       WHERE request_id = $1`,
+      [request_id]
+    );
+
+    await client.query('COMMIT');
     
     res.json({ 
-      message: "Medicine added to inventory successfully!",
-      medicine: result.rows[0]
+      message: "Medicine successfully added to pharmacy inventory!",
+      medicine: result.rows[0],
+      added_quantity: quantity
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error("Error adding to inventory:", err);
-    res.status(500).json({ error: "Failed to add to inventory" });
+    res.status(500).json({ error: "Failed to add to inventory: " + err.message });
+  } finally {
+    client.release();
   }
 });
 
 // =========================================================================
 // SUPPLIER ROUTES - FIXED
 // =========================================================================
+
+// Get all suppliers - FIXED VERSION
+app.get("/api/suppliers", async (req, res) => {
+  try {
+    console.log("Fetching suppliers for dropdown...");
+    
+    const result = await pool.query(
+      `SELECT 
+          s.supplier_id,
+          s.company_name,
+          s.user_id,
+          u.name as contact_name,
+          u.email,
+          u.phone,
+          u.address
+       FROM suppliers s
+       JOIN users u ON s.user_id = u.user_id
+       ORDER BY s.company_name`
+    );
+    
+    console.log(`Found ${result.rows.length} suppliers`);
+    
+    if (result.rows.length === 0) {
+      console.log("No suppliers found in database");
+      return res.json([]);
+    }
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching suppliers:", err);
+    res.status(500).json({ error: 'Failed to fetch suppliers: ' + err.message });
+  }
+});
 
 // Get supplier details by user_id
 app.get("/api/supplier/user/:userId", async (req, res) => {
@@ -1386,6 +1509,95 @@ app.get("/api/supplier/:supplierId/stats", async (req, res) => {
 // =========================================================================
 
 // Create stock request - FIXED (using default delivery_status)
+// app.post("/api/stock-requests", async (req, res) => {
+//   const { pharmacist_id, supplier_id, medicine_id, quantity_requested, notes, pharmacy_name } = req.body;
+  
+//   try {
+//     const medicineCheck = await pool.query(
+//       `SELECT name, stock FROM medicines WHERE medicine_id = $1`,
+//       [medicine_id]
+//     );
+    
+//     if (medicineCheck.rows.length === 0) {
+//       return res.status(400).json({ error: "Medicine not found" });
+//     }
+
+//     const result = await pool.query(
+//       `INSERT INTO stock_requests 
+//        (pharmacist_id, supplier_id, medicine_id, quantity_requested, notes, pharmacy_name, 
+//         request_date, status)
+//        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'Pending')
+//        RETURNING *`,
+//       [pharmacist_id, supplier_id, medicine_id, quantity_requested, notes || '', pharmacy_name]
+//     );
+    
+//     res.status(201).json(result.rows[0]);
+//   } catch (err) {
+//     console.error("Error creating stock request:", err);
+//     res.status(500).json({ error: "Failed to create stock request: " + err.message });
+//   }
+// });
+
+// Accept a stock request - FIXED
+// Accept a stock request - FIXED (with inventory check)
+// app.put("/api/stock-requests/:requestId/accept", async (req, res) => {
+//   const { requestId } = req.params;
+  
+//   const client = await pool.connect();
+//   try {
+//     await client.query('BEGIN');
+
+//     // Get request details
+//     const requestResult = await client.query(
+//       `SELECT * FROM stock_requests WHERE request_id = $1`,
+//       [requestId]
+//     );
+    
+//     if (requestResult.rows.length === 0) {
+//       await client.query('ROLLBACK');
+//       return res.status(404).json({ error: "Request not found" });
+//     }
+
+//     const request = requestResult.rows[0];
+
+//     // Check if supplier has enough inventory
+//     const inventoryResult = await client.query(
+//       `SELECT * FROM supplier_inventory 
+//        WHERE supplier_id = $1 AND medicine_id = $2`,
+//       [request.supplier_id, request.medicine_id]
+//     );
+
+//     if (inventoryResult.rows.length === 0) {
+//       await client.query('ROLLBACK');
+//       return res.status(400).json({ error: "Medicine not found in your inventory" });
+//     }
+
+//     const inventory = inventoryResult.rows[0];
+
+//     if (inventory.quantity_available < request.quantity_requested) {
+//       await client.query('ROLLBACK');
+//       return res.status(400).json({ 
+//         error: `Insufficient stock. Available: ${inventory.quantity_available}, Requested: ${request.quantity_requested}` 
+//       });
+//     }
+
+//     // Update request status to Accepted
+//     await client.query(
+//       `UPDATE stock_requests SET status = 'Accepted' WHERE request_id = $1`,
+//       [requestId]
+//     );
+
+//     await client.query('COMMIT');
+//     res.json({ message: "Request accepted successfully" });
+//   } catch (err) {
+//     await client.query('ROLLBACK');
+//     console.error("Error accepting request:", err);
+//     res.status(500).json({ error: "Failed to accept request" });
+//   } finally {
+//     client.release();
+//   }
+// });
+
 app.post("/api/stock-requests", async (req, res) => {
   const { pharmacist_id, supplier_id, medicine_id, quantity_requested, notes, pharmacy_name } = req.body;
   
@@ -1402,8 +1614,8 @@ app.post("/api/stock-requests", async (req, res) => {
     const result = await pool.query(
       `INSERT INTO stock_requests 
        (pharmacist_id, supplier_id, medicine_id, quantity_requested, notes, pharmacy_name, 
-        request_date, status)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'Pending')
+        request_date, status, delivery_status)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'Pending', 'NotShipped')
        RETURNING *`,
       [pharmacist_id, supplier_id, medicine_id, quantity_requested, notes || '', pharmacy_name]
     );
@@ -1415,8 +1627,7 @@ app.post("/api/stock-requests", async (req, res) => {
   }
 });
 
-// Accept a stock request - FIXED
-// Accept a stock request - FIXED (with inventory check)
+// Accept a stock request - COMPLETELY FIXED
 app.put("/api/stock-requests/:requestId/accept", async (req, res) => {
   const { requestId } = req.params;
   
@@ -1446,7 +1657,7 @@ app.put("/api/stock-requests/:requestId/accept", async (req, res) => {
 
     if (inventoryResult.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: "Medicine not found in your inventory" });
+      return res.status(400).json({ error: "Medicine not found in your inventory. Please add it first." });
     }
 
     const inventory = inventoryResult.rows[0];
@@ -1459,48 +1670,103 @@ app.put("/api/stock-requests/:requestId/accept", async (req, res) => {
     }
 
     // Update request status to Accepted
-    await client.query(
-      `UPDATE stock_requests SET status = 'Accepted' WHERE request_id = $1`,
+    const updateResult = await client.query(
+      `UPDATE stock_requests 
+       SET status = 'Accepted',
+           updated_at = NOW()
+       WHERE request_id = $1
+       RETURNING *`,
+      [requestId]
+    );
+
+
+    await client.query('COMMIT');
+    res.json({ 
+      message: "Request accepted successfully", 
+      request: updateResult.rows[0] 
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Error accepting request:", err);
+    res.status(500).json({ error: "Failed to accept request: " + err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Reject a stock request
+app.put("/api/stock-requests/:requestId/reject", async (req, res) => {
+  const { requestId } = req.params;
+  
+  console.log(`Rejecting request ID: ${requestId}`);
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Check if request exists
+    const requestCheck = await client.query(
+      "SELECT * FROM stock_requests WHERE request_id = $1",
+      [requestId]
+    );
+    
+    if (requestCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Request not found" });
+    }
+
+    // Try different status values if 'Rejected' doesn't work
+    const result = await client.query(
+      `UPDATE stock_requests 
+       SET status = 'Rejected',
+           delivery_status = 'NotShipped', 
+           updated_at = NOW()
+       WHERE request_id = $1 
+       RETURNING *`,
       [requestId]
     );
 
     await client.query('COMMIT');
-    res.json({ message: "Request accepted successfully" });
+    
+    console.log("Update successful:", result.rows[0]);
+    res.json({ message: "Request rejected", request: result.rows[0] });
+    
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error("Error accepting request:", err);
-    res.status(500).json({ error: "Failed to accept request" });
+    console.error("Error rejecting request:", err);
+    console.error("Full error details:", err.message, err.stack);
+    res.status(500).json({ error: "Failed to reject request: " + err.message });
   } finally {
     client.release();
   }
 });
 
 // Reject a stock request - FIXED
-app.put("/api/stock-requests/:requestId/reject", async (req, res) => {
-  const { requestId } = req.params;
-  const { reason } = req.body;
+// app.put("/api/stock-requests/:requestId/reject", async (req, res) => {
+//   const { requestId } = req.params;
+//   const { reason } = req.body;
   
-  try {
-    const result = await pool.query(
-      `UPDATE stock_requests 
-       SET status = 'Rejected', 
-           delivery_status = 'Cancelled',
-           notes = COALESCE($2, notes)
-       WHERE request_id = $1 
-       RETURNING *`,
-      [requestId, reason]
-    );
+//   try {
+//     const result = await pool.query(
+//       `UPDATE stock_requests 
+//        SET status = 'Rejected', 
+//            delivery_status = 'Cancelled',
+//            notes = COALESCE($2, notes)
+//        WHERE request_id = $1 
+//        RETURNING *`,
+//       [requestId, reason]
+//     );
     
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Request not found" });
-    }
+//     if (result.rows.length === 0) {
+//       return res.status(404).json({ error: "Request not found" });
+//     }
     
-    res.json({ message: "Request rejected", request: result.rows[0] });
-  } catch (err) {
-    console.error("Error rejecting request:", err);
-    res.status(500).json({ error: "Failed to reject request" });
-  }
-});
+//     res.json({ message: "Request rejected", request: result.rows[0] });
+//   } catch (err) {
+//     console.error("Error rejecting request:", err);
+//     res.status(500).json({ error: "Failed to reject request" });
+//   }
+// });
 
 // Ship order - FIXED
 app.put("/api/stock-requests/:requestId/ship", async (req, res) => {
@@ -1533,6 +1799,85 @@ app.put("/api/stock-requests/:requestId/ship", async (req, res) => {
 });
 
 // Mark as delivered - FIXED (reduce supplier inventory)
+// app.put("/api/stock-requests/:requestId/deliver", async (req, res) => {
+//   const { requestId } = req.params;
+  
+//   const client = await pool.connect();
+//   try {
+//     await client.query('BEGIN');
+
+//     const requestResult = await client.query(
+//       `SELECT * FROM stock_requests WHERE request_id = $1`,
+//       [requestId]
+//     );
+    
+//     if (requestResult.rows.length === 0) {
+//       await client.query('ROLLBACK');
+//       return res.status(404).json({ error: "Request not found" });
+//     }
+
+//     const request = requestResult.rows[0];
+
+//     // Check if request is accepted before delivering
+//     if (request.status !== 'Accepted') {
+//       await client.query('ROLLBACK');
+//       return res.status(400).json({ error: "Can only deliver accepted requests" });
+//     }
+
+//     // Check if supplier still has enough inventory
+//     const inventoryResult = await client.query(
+//       `SELECT * FROM supplier_inventory 
+//        WHERE supplier_id = $1 AND medicine_id = $2`,
+//       [request.supplier_id, request.medicine_id]
+//     );
+
+//     if (inventoryResult.rows.length === 0) {
+//       await client.query('ROLLBACK');
+//       return res.status(400).json({ error: "Medicine not found in your inventory" });
+//     }
+
+//     const inventory = inventoryResult.rows[0];
+
+//     if (inventory.quantity_available < request.quantity_requested) {
+//       await client.query('ROLLBACK');
+//       return res.status(400).json({ 
+//         error: `Insufficient stock. Available: ${inventory.quantity_available}, Requested: ${request.quantity_requested}` 
+//       });
+//     }
+
+//     // Update delivery status and mark as completed
+//     await client.query(
+//       `UPDATE stock_requests 
+//        SET delivery_status = 'Delivered', 
+//            status = 'Completed',
+//            delivery_date = CURRENT_TIMESTAMP
+//        WHERE request_id = $1`,
+//       [requestId]
+//     );
+
+//     // Reduce supplier inventory
+//     await client.query(
+//       `UPDATE supplier_inventory 
+//        SET quantity_available = quantity_available - $1,
+//            updated_at = NOW()
+//        WHERE supplier_id = $2 AND medicine_id = $3`,
+//       [request.quantity_requested, request.supplier_id, request.medicine_id]
+//     );
+
+//     await client.query('COMMIT');
+//     res.json({ 
+//       message: "Delivery completed successfully! Inventory updated.",
+//       delivered_quantity: request.quantity_requested
+//     });
+//   } catch (err) {
+//     await client.query('ROLLBACK');
+//     console.error("Error delivering order:", err);
+//     res.status(500).json({ error: "Failed to complete delivery" });
+//   } finally {
+//     client.release();
+//   }
+// });
+
 app.put("/api/stock-requests/:requestId/deliver", async (req, res) => {
   const { requestId } = req.params;
   
@@ -1552,10 +1897,10 @@ app.put("/api/stock-requests/:requestId/deliver", async (req, res) => {
 
     const request = requestResult.rows[0];
 
-    // Check if request is accepted before delivering
-    if (request.status !== 'Accepted') {
+    // Check if request is shipped before delivering
+    if (request.delivery_status !== 'Shipped') {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: "Can only deliver accepted requests" });
+      return res.status(400).json({ error: "Can only deliver shipped orders" });
     }
 
     // Check if supplier still has enough inventory
@@ -1598,15 +1943,23 @@ app.put("/api/stock-requests/:requestId/deliver", async (req, res) => {
       [request.quantity_requested, request.supplier_id, request.medicine_id]
     );
 
+    // Update medicines table stock (add to pharmacist's available medicines)
+    await client.query(
+      `UPDATE medicines 
+       SET stock = stock + $1
+       WHERE medicine_id = $2 AND supplier_id = $3`,
+      [request.quantity_requested, request.medicine_id, request.supplier_id]
+    );
+
     await client.query('COMMIT');
     res.json({ 
-      message: "Delivery completed successfully! Inventory updated.",
+      message: "Delivery completed successfully! Inventory and medicines table updated.",
       delivered_quantity: request.quantity_requested
     });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error("Error delivering order:", err);
-    res.status(500).json({ error: "Failed to complete delivery" });
+    res.status(500).json({ error: "Failed to complete delivery: " + err.message });
   } finally {
     client.release();
   }
