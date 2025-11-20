@@ -124,65 +124,65 @@ function Home() {
         </div>
       </section>
 
-      {/* About Section */}
-      <section className="py-20 px-8 bg-gradient-to-br from-slate-50 to-blue-50">
-        <div className="max-w-7xl mx-auto text-center">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-16">How our platform process<br/>easy to use?</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: <svg className="w-16 h-16 mx-auto mb-6" viewBox="0 0 100 100">
-                  <rect x="20" y="20" width="60" height="50" rx="8" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="2"/>
-                  <rect x="30" y="35" width="15" height="15" rx="4" fill="#3B82F6"/>
-                  <circle cx="60" cy="42" r="8" fill="#3B82F6"/>
-                  <line x1="35" y1="60" x2="65" y2="60" stroke="#3B82F6" strokeWidth="2"/>
-                </svg>,
-                title: "Login or sign up to be able use our platform",
-                desc: "You must log in first to be able to use our platform and your product analytics."
-              },
-              {
-                icon: <svg className="w-16 h-16 mx-auto mb-6" viewBox="0 0 100 100">
-                  <rect x="25" y="15" width="50" height="60" rx="8" fill="#FEF3C7" stroke="#F59E0B" strokeWidth="2"/>
-                  <rect x="35" y="25" width="10" height="15" rx="2" fill="#10B981"/>
-                  <rect x="55" y="30" width="10" height="10" rx="2" fill="#EF4444"/>
-                  <rect x="35" y="50" width="30" height="4" rx="2" fill="#3B82F6"/>
-                  <text x="50" y="70" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#000">12.02</text>
-                </svg>,
-                title: "Connect your website with just a few click",
-                desc: "Select the application you wanted to be able to connect with just a few clicks."
-              },
-              {
-                icon: <svg className="w-16 h-16 mx-auto mb-6" viewBox="0 0 100 100">
-                  <rect x="20" y="20" width="60" height="50" rx="8" fill="#E0F2FE" stroke="#06B6D4" strokeWidth="2"/>
-                  <rect x="30" y="35" width="12" height="25" rx="2" fill="#06B6D4"/>
-                  <rect x="45" y="30" width="12" height="30" rx="2" fill="#3B82F6"/>
-                  <rect x="60" y="40" width="12" height="20" rx="2" fill="#14B8A6"/>
-                </svg>,
-                title: "Take some sales data that you want",
-                desc: "You already have sales data of your product with some variants you want."
-              }
-            ].map((step, i) => (
-              <div key={i} className="group">
-                <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
-                  <div className="group-hover:scale-110 transition-transform duration-300">
-                    {step.icon}
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">{step.title}</h3>
-                  <p className="text-gray-600">{step.desc}</p>
-                </div>
-                {i < 2 && (
-                  <div className="hidden md:block absolute top-1/2 right-0 transform translate-x-1/2">
-                    <svg width="60" height="20" viewBox="0 0 60 20">
-                      <path d="M 0 10 Q 30 10, 60 10" stroke="#CBD5E1" strokeWidth="2" strokeDasharray="5,5" fill="none"/>
-                    </svg>
-                  </div>
-                )}
-              </div>
-            ))}
+     {/* About Section */}
+<section className="py-20 px-8 bg-gradient-to-br from-slate-50 to-blue-50">
+  <div className="max-w-7xl mx-auto text-center">
+    <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-16">How Our Pharmacy Platform<br/>Makes Healthcare Easy</h2>
+    
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      {[
+        {
+          icon: <svg className="w-16 h-16 mx-auto mb-6" viewBox="0 0 100 100">
+            <rect x="20" y="20" width="60" height="50" rx="8" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="2"/>
+            <rect x="30" y="35" width="15" height="15" rx="4" fill="#3B82F6"/>
+            <circle cx="60" cy="42" r="8" fill="#3B82F6"/>
+            <line x1="35" y1="60" x2="65" y2="60" stroke="#3B82F6" strokeWidth="2"/>
+          </svg>,
+          title: "Create Your Account & Login",
+          desc: "Sign up as a patient, doctor, pharmacist, or supplier to access our comprehensive healthcare platform."
+        },
+        {
+          icon: <svg className="w-16 h-16 mx-auto mb-6" viewBox="0 0 100 100">
+            <rect x="25" y="15" width="50" height="60" rx="8" fill="#FEF3C7" stroke="#F59E0B" strokeWidth="2"/>
+            <rect x="35" y="25" width="10" height="15" rx="2" fill="#10B981"/>
+            <rect x="55" y="30" width="10" height="10" rx="2" fill="#EF4444"/>
+            <rect x="35" y="50" width="30" height="4" rx="2" fill="#3B82F6"/>
+            <text x="50" y="70" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#000">12.02</text>
+          </svg>,
+          title: "Manage Medications & Prescriptions",
+          desc: "Doctors can issue digital prescriptions, patients can upload them, and pharmacists can verify and process orders."
+        },
+        {
+          icon: <svg className="w-16 h-16 mx-auto mb-6" viewBox="0 0 100 100">
+            <rect x="20" y="20" width="60" height="50" rx="8" fill="#E0F2FE" stroke="#06B6D4" strokeWidth="2"/>
+            <rect x="30" y="35" width="12" height="25" rx="2" fill="#06B6D4"/>
+            <rect x="45" y="30" width="12" height="30" rx="2" fill="#3B82F6"/>
+            <rect x="60" y="40" width="12" height="20" rx="2" fill="#14B8A6"/>
+          </svg>,
+          title: "Streamlined Supply Chain",
+          desc: "Pharmacists can request stock from suppliers, track deliveries, and manage inventory seamlessly."
+        }
+      ].map((step, i) => (
+        <div key={i} className="group relative">
+          <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
+            <div className="group-hover:scale-110 transition-transform duration-300">
+              {step.icon}
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">{step.title}</h3>
+            <p className="text-gray-600">{step.desc}</p>
           </div>
+          {i < 2 && (
+            <div className="hidden md:block absolute top-1/2 right-0 transform translate-x-1/2 -translate-y-1/2">
+              <svg width="60" height="20" viewBox="0 0 60 20">
+                <path d="M 0 10 Q 30 10, 60 10" stroke="#CBD5E1" strokeWidth="2" strokeDasharray="5,5" fill="none"/>
+              </svg>
+            </div>
+          )}
         </div>
-      </section>
+      ))}
+    </div>
+  </div>
+</section>
 
       {/* Why Choose Us with Image */}
       <section className="py-20 px-8">
@@ -246,9 +246,11 @@ function Home() {
           patients, doctors, pharmacists, and suppliers. We provide prescriptions,
           medicine delivery, and healthcare solutions — all in one secure system.
           </p>
-          <button className="px-10 py-4 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-all duration-300 hover:scale-105 shadow-xl">
+          <Link to="/login">
+           <button className="px-10 py-4 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-all duration-300 hover:scale-105 shadow-xl">
             Get Started Today
           </button>
+          </Link>
         </div>
       </section>
 
@@ -295,8 +297,8 @@ function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { number: "10,000+", label: "Happy Customers", icon: <FiHeart /> },
-              { number: "500+", label: "Medicines Available", icon: <FiPackage /> },
+              { number: "1000+", label: "Happy Customers", icon: <FiHeart /> },
+              { number: "100+", label: "Medicines Available", icon: <FiPackage /> },
               { number: "50+", label: "Expert Doctors", icon: <FiUserCheck /> },
               { number: "24/7", label: "Support Available", icon: <FiClock /> }
             ].map((stat, i) => (
@@ -357,10 +359,31 @@ function Home() {
           <div>
             <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-3 text-gray-400">
-              <li><a href="#" className="hover:text-white transition-colors">Home</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Products</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Doctors</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Pharmacists</a></li>
+              <li>
+                <Link to="/" className="hover:text-white transition-colors">
+                  Home
+                </Link>
+              </li>
+              <li>
+                <Link to="/products" className="hover:text-white transition-colors">
+                  Products
+                </Link>
+              </li>
+              <li>
+                <Link to="/doctors" className="hover:text-white transition-colors">
+                  Doctors
+                </Link>
+              </li>
+              <li>
+                <Link to="/pharmacists" className="hover:text-white transition-colors">
+                  Pharmacists
+                </Link>
+              </li>
+              <li>
+                <Link to="/suppliers" className="hover:text-white transition-colors">
+                  Suppliers
+                </Link>
+              </li>
             </ul>
           </div>
           <div>

@@ -120,9 +120,6 @@ function Products() {
                       <ShoppingCart size={20} />
                     )}
                   </button>
-                  <button className="p-2 border border-cyan-600 rounded-lg hover:bg-red-100 transition">
-                    <Heart size={20} className="text-red-600" />
-                  </button>
                 </div>
               </div>
             </div>

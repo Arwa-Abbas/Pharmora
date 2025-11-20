@@ -121,7 +121,7 @@ app.get("/suppliers", async (req, res) => {
   }
 });
 
-// Get all doctors - FIXED VERSION
+// Get all doctors
 app.get('/api/doctors', async (req, res) => {
   try {
     console.log("Fetching doctors...");
@@ -156,7 +156,6 @@ app.get('/api/doctors', async (req, res) => {
 });
 
 // Get all pharmacists
-// Get all pharmacists - FIXED VERSION
 app.get("/api/pharmacists", async (req, res) => {
   try {
     console.log("Fetching pharmacists...");
@@ -431,7 +430,7 @@ app.delete("/api/cart/:cartItemId", async (req, res) => {
 });
 
 // ============= PRESCRIPTION ROUTES =============
-// Upload prescription - UPDATED VERSION
+// Upload prescription 
 app.post("/api/prescriptions", async (req, res) => {
   const { patient_id, doctor_id, prescription_image, notes, order_id } = req.body;
   
@@ -1235,7 +1234,7 @@ app.post("/api/pharmacist/add-to-inventory", async (req, res) => {
 // SUPPLIER ROUTES - FIXED
 // =========================================================================
 
-// Get all suppliers - FIXED VERSION
+// Get all suppliers
 app.get("/api/suppliers", async (req, res) => {
   try {
     console.log("Fetching suppliers for dropdown...");
@@ -1504,99 +1503,7 @@ app.get("/api/supplier/:supplierId/stats", async (req, res) => {
   }
 });
 
-// =========================================================================
-// STOCK REQUEST FLOW ROUTES - FIXED
-// =========================================================================
 
-// Create stock request - FIXED (using default delivery_status)
-// app.post("/api/stock-requests", async (req, res) => {
-//   const { pharmacist_id, supplier_id, medicine_id, quantity_requested, notes, pharmacy_name } = req.body;
-  
-//   try {
-//     const medicineCheck = await pool.query(
-//       `SELECT name, stock FROM medicines WHERE medicine_id = $1`,
-//       [medicine_id]
-//     );
-    
-//     if (medicineCheck.rows.length === 0) {
-//       return res.status(400).json({ error: "Medicine not found" });
-//     }
-
-//     const result = await pool.query(
-//       `INSERT INTO stock_requests 
-//        (pharmacist_id, supplier_id, medicine_id, quantity_requested, notes, pharmacy_name, 
-//         request_date, status)
-//        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'Pending')
-//        RETURNING *`,
-//       [pharmacist_id, supplier_id, medicine_id, quantity_requested, notes || '', pharmacy_name]
-//     );
-    
-//     res.status(201).json(result.rows[0]);
-//   } catch (err) {
-//     console.error("Error creating stock request:", err);
-//     res.status(500).json({ error: "Failed to create stock request: " + err.message });
-//   }
-// });
-
-// Accept a stock request - FIXED
-// Accept a stock request - FIXED (with inventory check)
-// app.put("/api/stock-requests/:requestId/accept", async (req, res) => {
-//   const { requestId } = req.params;
-  
-//   const client = await pool.connect();
-//   try {
-//     await client.query('BEGIN');
-
-//     // Get request details
-//     const requestResult = await client.query(
-//       `SELECT * FROM stock_requests WHERE request_id = $1`,
-//       [requestId]
-//     );
-    
-//     if (requestResult.rows.length === 0) {
-//       await client.query('ROLLBACK');
-//       return res.status(404).json({ error: "Request not found" });
-//     }
-
-//     const request = requestResult.rows[0];
-
-//     // Check if supplier has enough inventory
-//     const inventoryResult = await client.query(
-//       `SELECT * FROM supplier_inventory 
-//        WHERE supplier_id = $1 AND medicine_id = $2`,
-//       [request.supplier_id, request.medicine_id]
-//     );
-
-//     if (inventoryResult.rows.length === 0) {
-//       await client.query('ROLLBACK');
-//       return res.status(400).json({ error: "Medicine not found in your inventory" });
-//     }
-
-//     const inventory = inventoryResult.rows[0];
-
-//     if (inventory.quantity_available < request.quantity_requested) {
-//       await client.query('ROLLBACK');
-//       return res.status(400).json({ 
-//         error: `Insufficient stock. Available: ${inventory.quantity_available}, Requested: ${request.quantity_requested}` 
-//       });
-//     }
-
-//     // Update request status to Accepted
-//     await client.query(
-//       `UPDATE stock_requests SET status = 'Accepted' WHERE request_id = $1`,
-//       [requestId]
-//     );
-
-//     await client.query('COMMIT');
-//     res.json({ message: "Request accepted successfully" });
-//   } catch (err) {
-//     await client.query('ROLLBACK');
-//     console.error("Error accepting request:", err);
-//     res.status(500).json({ error: "Failed to accept request" });
-//   } finally {
-//     client.release();
-//   }
-// });
 
 app.post("/api/stock-requests", async (req, res) => {
   const { pharmacist_id, supplier_id, medicine_id, quantity_requested, notes, pharmacy_name } = req.body;
@@ -1627,7 +1534,7 @@ app.post("/api/stock-requests", async (req, res) => {
   }
 });
 
-// Accept a stock request - COMPLETELY FIXED
+// Accept a stock request 
 app.put("/api/stock-requests/:requestId/accept", async (req, res) => {
   const { requestId } = req.params;
   
@@ -1741,34 +1648,8 @@ app.put("/api/stock-requests/:requestId/reject", async (req, res) => {
   }
 });
 
-// Reject a stock request - FIXED
-// app.put("/api/stock-requests/:requestId/reject", async (req, res) => {
-//   const { requestId } = req.params;
-//   const { reason } = req.body;
-  
-//   try {
-//     const result = await pool.query(
-//       `UPDATE stock_requests 
-//        SET status = 'Rejected', 
-//            delivery_status = 'Cancelled',
-//            notes = COALESCE($2, notes)
-//        WHERE request_id = $1 
-//        RETURNING *`,
-//       [requestId, reason]
-//     );
-    
-//     if (result.rows.length === 0) {
-//       return res.status(404).json({ error: "Request not found" });
-//     }
-    
-//     res.json({ message: "Request rejected", request: result.rows[0] });
-//   } catch (err) {
-//     console.error("Error rejecting request:", err);
-//     res.status(500).json({ error: "Failed to reject request" });
-//   }
-// });
 
-// Ship order - FIXED
+// Ship order 
 app.put("/api/stock-requests/:requestId/ship", async (req, res) => {
   const { requestId } = req.params;
   const { tracking_info } = req.body;
@@ -1797,86 +1678,6 @@ app.put("/api/stock-requests/:requestId/ship", async (req, res) => {
     res.status(500).json({ error: "Failed to ship order" });
   }
 });
-
-// Mark as delivered - FIXED (reduce supplier inventory)
-// app.put("/api/stock-requests/:requestId/deliver", async (req, res) => {
-//   const { requestId } = req.params;
-  
-//   const client = await pool.connect();
-//   try {
-//     await client.query('BEGIN');
-
-//     const requestResult = await client.query(
-//       `SELECT * FROM stock_requests WHERE request_id = $1`,
-//       [requestId]
-//     );
-    
-//     if (requestResult.rows.length === 0) {
-//       await client.query('ROLLBACK');
-//       return res.status(404).json({ error: "Request not found" });
-//     }
-
-//     const request = requestResult.rows[0];
-
-//     // Check if request is accepted before delivering
-//     if (request.status !== 'Accepted') {
-//       await client.query('ROLLBACK');
-//       return res.status(400).json({ error: "Can only deliver accepted requests" });
-//     }
-
-//     // Check if supplier still has enough inventory
-//     const inventoryResult = await client.query(
-//       `SELECT * FROM supplier_inventory 
-//        WHERE supplier_id = $1 AND medicine_id = $2`,
-//       [request.supplier_id, request.medicine_id]
-//     );
-
-//     if (inventoryResult.rows.length === 0) {
-//       await client.query('ROLLBACK');
-//       return res.status(400).json({ error: "Medicine not found in your inventory" });
-//     }
-
-//     const inventory = inventoryResult.rows[0];
-
-//     if (inventory.quantity_available < request.quantity_requested) {
-//       await client.query('ROLLBACK');
-//       return res.status(400).json({ 
-//         error: `Insufficient stock. Available: ${inventory.quantity_available}, Requested: ${request.quantity_requested}` 
-//       });
-//     }
-
-//     // Update delivery status and mark as completed
-//     await client.query(
-//       `UPDATE stock_requests 
-//        SET delivery_status = 'Delivered', 
-//            status = 'Completed',
-//            delivery_date = CURRENT_TIMESTAMP
-//        WHERE request_id = $1`,
-//       [requestId]
-//     );
-
-//     // Reduce supplier inventory
-//     await client.query(
-//       `UPDATE supplier_inventory 
-//        SET quantity_available = quantity_available - $1,
-//            updated_at = NOW()
-//        WHERE supplier_id = $2 AND medicine_id = $3`,
-//       [request.quantity_requested, request.supplier_id, request.medicine_id]
-//     );
-
-//     await client.query('COMMIT');
-//     res.json({ 
-//       message: "Delivery completed successfully! Inventory updated.",
-//       delivered_quantity: request.quantity_requested
-//     });
-//   } catch (err) {
-//     await client.query('ROLLBACK');
-//     console.error("Error delivering order:", err);
-//     res.status(500).json({ error: "Failed to complete delivery" });
-//   } finally {
-//     client.release();
-//   }
-// });
 
 app.put("/api/stock-requests/:requestId/deliver", async (req, res) => {
   const { requestId } = req.params;
@@ -1960,6 +1761,732 @@ app.put("/api/stock-requests/:requestId/deliver", async (req, res) => {
     await client.query('ROLLBACK');
     console.error("Error delivering order:", err);
     res.status(500).json({ error: "Failed to complete delivery: " + err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ====================
+// ADMIN ROUTES
+// ====================
+
+// Admin authentication middleware
+const authenticateAdmin = (req, res, next) => {
+  try {
+    // For demo purposes, we'll skip full authentication
+    console.log("Admin route accessed:", req.path);
+    next();
+  } catch (err) {
+    console.error("Admin auth error:", err);
+    res.status(401).json({ error: "Admin authentication failed" });
+  }
+};
+
+// Get all users properly without duplicates
+app.get("/api/admin/users", authenticateAdmin, async (req, res) => {
+  console.log("=== ADMIN USERS ENDPOINT START ===");
+  
+  const client = await pool.connect();
+  try {
+    console.log("1. Connected to database");
+    
+    // Test 1: Check if we can query anything from users table
+    console.log("2. Testing basic users query...");
+    const testQuery = await client.query("SELECT 1 as test FROM users LIMIT 1");
+    console.log("3. Basic query successful");
+    
+    // Test 2: Try to get column names
+    console.log("4. Getting column information...");
+    const columnsResult = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' 
+      ORDER BY ordinal_position
+    `);
+    console.log("5. Available columns:", columnsResult.rows.map(r => r.column_name));
+    
+    // Test 3: Try different query approaches
+    let result;
+    
+    // Approach 1: Try with all possible columns
+    try {
+      console.log("6. Trying comprehensive query...");
+      result = await client.query(`
+        SELECT 
+          user_id,
+          name,
+          email,
+          COALESCE(phone, '') as phone,
+          COALESCE(address, '') as address,
+          role
+        FROM users 
+        WHERE role NOT IN ('Admin', 'admin')
+        ORDER BY user_id DESC
+      `);
+      console.log("7. Comprehensive query successful");
+    } catch (err1) {
+      console.log("7. Comprehensive query failed:", err1.message);
+      
+      // Approach 2: Try minimal columns
+      try {
+        console.log("8. Trying minimal query...");
+        result = await client.query(`
+          SELECT user_id, name, email, role
+          FROM users 
+          WHERE role NOT IN ('Admin', 'admin')
+          ORDER BY user_id DESC
+        `);
+        console.log("9. Minimal query successful");
+      } catch (err2) {
+        console.log("9. Minimal query failed:", err2.message);
+        
+        // Approach 3: Just get all users without filtering
+        try {
+          console.log("10. Trying basic all-users query...");
+          result = await client.query(`
+            SELECT user_id, name, email, role
+            FROM users 
+            ORDER BY user_id DESC
+          `);
+          console.log("11. Basic all-users query successful");
+        } catch (err3) {
+          console.log("11. All queries failed - critical error");
+          throw new Error(`All query attempts failed: ${err1.message}, ${err2.message}, ${err3.message}`);
+        }
+      }
+    }
+
+    console.log(`12. Found ${result.rows.length} users`);
+    console.log("13. Sample users:", result.rows.slice(0, 3));
+    
+    // If we got here with all users (no filtering), filter in JavaScript
+    const finalUsers = result.rows.filter(user => 
+      user.role && user.role.toLowerCase() !== 'admin'
+    );
+    
+    console.log(`14. Returning ${finalUsers.length} non-admin users`);
+    
+    res.json(finalUsers);
+    
+  } catch (err) {
+    console.error("=== CRITICAL ERROR ===");
+    console.error("Error:", err.message);
+    console.error("Stack:", err.stack);
+    
+    // Try one more simple test
+    try {
+      console.log("Attempting final simple test...");
+      const simpleTest = await client.query("SELECT COUNT(*) as count FROM users");
+      console.log("Total users in database:", simpleTest.rows[0].count);
+    } catch (finalErr) {
+      console.error("Final test also failed:", finalErr.message);
+    }
+    
+    res.status(500).json({ 
+      error: "Failed to fetch users",
+      detailed_error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  } finally {
+    client.release();
+    console.log("=== ADMIN USERS ENDPOINT END ===");
+  }
+});
+
+// Emergency test endpoint - no authentication
+app.get("/api/admin/test-simple", async (req, res) => {
+  console.log("=== SIMPLE TEST ENDPOINT ===");
+  try {
+    // Try the simplest possible query
+    const result = await pool.query("SELECT user_id, name, email FROM users LIMIT 5");
+    console.log("Simple test successful, found:", result.rows.length, "users");
+    res.json({ 
+      success: true, 
+      users: result.rows,
+      message: `Found ${result.rows.length} users` 
+    });
+  } catch (err) {
+    console.error("Simple test failed:", err.message);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message,
+      hint: "Check if users table exists and is accessible"
+    });
+  }
+});
+
+// Get dashboard statistics - FIXED
+// Get dashboard statistics - FIXED role capitalization
+app.get("/api/admin/stats", authenticateAdmin, async (req, res) => {
+  try {
+    // Get total counts
+    const usersCount = await pool.query("SELECT COUNT(DISTINCT user_id) FROM users WHERE role NOT IN ('Admin', 'admin')");
+    const medicinesCount = await pool.query("SELECT COUNT(*) FROM medicines");
+    const ordersCount = await pool.query("SELECT COUNT(*) FROM orders");
+    const prescriptionsCount = await pool.query("SELECT COUNT(*) FROM prescriptions");
+
+    // Get users by role - FIXED to handle different capitalizations
+    const usersByRole = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN LOWER(role) = 'patient' THEN 'Patient'
+          WHEN LOWER(role) = 'doctor' THEN 'Doctor' 
+          WHEN LOWER(role) = 'pharmacist' THEN 'Pharmacist'
+          WHEN LOWER(role) = 'supplier' THEN 'Supplier'
+          ELSE role
+        END as normalized_role,
+        COUNT(DISTINCT user_id) as count 
+      FROM users 
+      WHERE role NOT IN ('Admin', 'admin')
+      GROUP BY 
+        CASE 
+          WHEN LOWER(role) = 'patient' THEN 'Patient'
+          WHEN LOWER(role) = 'doctor' THEN 'Doctor'
+          WHEN LOWER(role) = 'pharmacist' THEN 'Pharmacist' 
+          WHEN LOWER(role) = 'supplier' THEN 'Supplier'
+          ELSE role
+        END
+      ORDER BY normalized_role
+    `);
+    
+    // Convert to object format
+    const roleCounts = {};
+    usersByRole.rows.forEach(row => {
+      roleCounts[row.normalized_role] = parseInt(row.count);
+    });
+
+    // Get recent orders
+    const recentOrders = await pool.query(`
+      SELECT o.order_id, u.name, o.total_price, o.status, o.order_date
+      FROM orders o
+      JOIN users u ON o.user_id = u.user_id
+      ORDER BY o.order_date DESC
+      LIMIT 5
+    `);
+
+    // Get low stock medicines
+    const lowStock = await pool.query(`
+      SELECT name, stock 
+      FROM medicines 
+      WHERE stock < 10 
+      ORDER BY stock ASC 
+      LIMIT 5
+    `);
+
+    // Calculate total revenue from completed orders
+    const revenueResult = await pool.query(`
+      SELECT COALESCE(SUM(total_price), 0) as total_revenue 
+      FROM orders 
+      WHERE LOWER(status) = 'completed' OR LOWER(status) = 'delivered'
+    `);
+
+    res.json({
+      total_users: parseInt(usersCount.rows[0].count),
+      total_medicines: parseInt(medicinesCount.rows[0].count),
+      total_orders: parseInt(ordersCount.rows[0].count),
+      total_prescriptions: parseInt(prescriptionsCount.rows[0].count || 0),
+      total_revenue: parseFloat(revenueResult.rows[0].total_revenue || 0),
+      users_by_role: roleCounts,
+      recent_orders: recentOrders.rows,
+      low_stock_medicines: lowStock.rows
+    });
+  } catch (err) {
+    console.error("Error fetching stats:", err);
+    res.status(500).json({ error: "Failed to fetch dashboard statistics" });
+  }
+});
+// Generate reports with Excel/CSV download
+app.get("/api/admin/reports", authenticateAdmin, async (req, res) => {
+  try {
+    const { type, format = 'json' } = req.query;
+    
+    let reportData;
+    let filename = '';
+
+    switch (type) {
+      case 'sales':
+        reportData = await pool.query(`
+          SELECT 
+            DATE(o.order_date) as date,
+            COUNT(*) as order_count,
+            SUM(o.total_price) as total_revenue,
+            AVG(o.total_price) as avg_order_value
+          FROM orders o
+          WHERE o.order_date >= CURRENT_DATE - INTERVAL '30 days'
+          GROUP BY DATE(o.order_date)
+          ORDER BY date DESC
+        `);
+        filename = 'sales_report';
+        break;
+
+      case 'users':
+      // FIXED: User distribution report with role normalization
+      reportData = await pool.query(`
+        SELECT 
+          CASE 
+            WHEN LOWER(role) = 'patient' THEN 'Patient'
+            WHEN LOWER(role) = 'doctor' THEN 'Doctor'
+            WHEN LOWER(role) = 'pharmacist' THEN 'Pharmacist'
+            WHEN LOWER(role) = 'supplier' THEN 'Supplier'
+            ELSE role
+          END as role,
+          COUNT(*) as user_count,
+          ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM users WHERE role NOT IN ('Admin', 'admin')), 2) as percentage
+        FROM users
+        WHERE role NOT IN ('Admin', 'admin')
+        GROUP BY 
+          CASE 
+            WHEN LOWER(role) = 'patient' THEN 'Patient'
+            WHEN LOWER(role) = 'doctor' THEN 'Doctor'
+            WHEN LOWER(role) = 'pharmacist' THEN 'Pharmacist'
+            WHEN LOWER(role) = 'supplier' THEN 'Supplier'
+            ELSE role
+          END
+        ORDER BY user_count DESC
+      `);
+      filename = 'user_distribution_report';
+  break; 
+
+      case 'medicines':
+        reportData = await pool.query(`
+          SELECT 
+            m.name,
+            m.category,
+            m.price,
+            m.stock,
+            COALESCE(SUM(oi.quantity), 0) as total_sold,
+            COALESCE(SUM(oi.quantity * oi.price), 0) as total_revenue
+          FROM medicines m
+          LEFT JOIN order_items oi ON m.medicine_id = oi.medicine_id
+          LEFT JOIN orders o ON oi.order_id = o.order_id
+          WHERE o.order_date >= CURRENT_DATE - INTERVAL '30 days' OR o.order_id IS NULL
+          GROUP BY m.medicine_id, m.name, m.category, m.price, m.stock
+          ORDER BY total_sold DESC
+          LIMIT 50
+        `);
+        filename = 'medicine_analytics_report';
+        break;
+
+      default:
+        return res.status(400).json({ error: "Invalid report type" });
+    }
+
+    const data = reportData.rows;
+    const timestamp = new Date().toISOString().split('T')[0];
+
+    console.log(`Generated ${type} report with ${data.length} records`);
+
+    // If CSV format requested
+    if (format === 'csv') {
+      let csv = '';
+      
+      // Add headers
+      if (data.length > 0) {
+        const headers = Object.keys(data[0]);
+        csv += headers.join(',') + '\n';
+        
+        // Add data rows
+        data.forEach(row => {
+          const values = headers.map(header => {
+            let value = row[header];
+            // Handle special characters and commas in CSV
+            if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+              value = `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          });
+          csv += values.join(',') + '\n';
+        });
+      } else {
+        // If no data, create empty CSV with headers
+        if (type === 'users') {
+          csv = 'role,user_count,percentage\n';
+        }
+      }
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${filename}_${timestamp}.csv`);
+      return res.send(csv);
+    }
+    
+    // Default JSON response
+    res.json(data);
+  } catch (err) {
+    console.error("Error generating report:", err);
+    res.status(500).json({ error: "Failed to generate report: " + err.message });
+  }
+});
+
+// Get all patients for admin
+app.get("/api/admin/patients", authenticateAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        p.user_id,
+        p.first_name,
+        p.last_name,
+        p.email,
+        p.phone,
+        p.address,
+        p.city,
+        p.country,
+        p.medical_history,
+      FROM patients p
+      JOIN users u ON p.user_id = u.user_id
+      ORDER BY p.first_name, p.last_name
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching patients:", err);
+    res.status(500).json({ error: "Failed to fetch patients" });
+  }
+});
+
+// Get all doctors for admin
+app.get("/api/admin/doctors", authenticateAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        d.user_id,
+        d.first_name,
+        d.last_name,
+        d.email,
+        d.phone,
+        d.address,
+        d.city,
+        d.country,
+        d.specialty,
+        d.medical_license,
+      FROM doctors d
+      JOIN users u ON d.user_id = u.user_id
+      ORDER BY d.first_name, d.last_name
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching doctors:", err);
+    res.status(500).json({ error: "Failed to fetch doctors" });
+  }
+});
+
+// Get all pharmacists for admin
+app.get("/api/admin/pharmacists", authenticateAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        p.user_id,
+        p.first_name,
+        p.last_name,
+        p.email,
+        p.phone,
+        p.address,
+        p.city,
+        p.country,
+        p.pharmacy_name,
+        p.pharmacy_license,
+      FROM pharmacists p
+      JOIN users u ON p.user_id = u.user_id
+      ORDER BY p.first_name, p.last_name
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching pharmacists:", err);
+    res.status(500).json({ error: "Failed to fetch pharmacists" });
+  }
+});
+
+// Get all suppliers for admin
+app.get("/api/admin/suppliers", authenticateAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        s.user_id,
+        s.first_name,
+        s.last_name,
+        s.email,
+        s.phone,
+        s.address,
+        s.city,
+        s.country,
+        s.company_name,
+        s.supplier_reg_id,
+      FROM suppliers s
+      JOIN users u ON s.user_id = u.user_id
+      ORDER BY s.company_name
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching suppliers:", err);
+    res.status(500).json({ error: "Failed to fetch suppliers" });
+  }
+});
+
+// Delete user from all tables
+app.delete("/api/admin/users/:userId", authenticateAdmin, async (req, res) => {
+  const { userId } = req.params;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get user role first
+    const userResult = await client.query("SELECT role FROM users WHERE user_id = $1", [userId]);
+    if (userResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userRole = userResult.rows[0].role;
+    
+    // Delete from role-specific table based on role
+    switch (userRole.toLowerCase()) {
+      case 'patient':
+        await client.query("DELETE FROM patients WHERE user_id = $1", [userId]);
+        break;
+      case 'doctor':
+        await client.query("DELETE FROM doctors WHERE user_id = $1", [userId]);
+        break;
+      case 'pharmacist':
+        await client.query("DELETE FROM pharmacists WHERE user_id = $1", [userId]);
+        break;
+      case 'supplier':
+        await client.query("DELETE FROM suppliers WHERE user_id = $1", [userId]);
+        break;
+    }
+
+    // Delete related records from other tables
+    await client.query("DELETE FROM cart_items WHERE user_id = $1", [userId]);
+    await client.query("DELETE FROM orders WHERE user_id = $1", [userId]);
+    
+    // Handle prescriptions - set patient_id to null or delete based on your business logic
+    await client.query("UPDATE prescriptions SET patient_id = NULL WHERE patient_id = $1", [userId]);
+    await client.query("UPDATE prescriptions SET doctor_id = NULL WHERE doctor_id = $1", [userId]);
+
+    // Finally delete from users table
+    await client.query("DELETE FROM users WHERE user_id = $1", [userId]);
+
+    await client.query('COMMIT');
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Error deleting user:", err);
+    res.status(500).json({ error: "Failed to delete user: " + err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Update user
+// Update user - FIXED to update role-specific tables
+app.put("/api/admin/users/:userId", authenticateAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const { name, email, phone, address, role } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    console.log(`Updating user ${userId} with role: ${role}`);
+
+    // First get current user role to know which table to update
+    const currentUser = await client.query(
+      "SELECT role FROM users WHERE user_id = $1",
+      [userId]
+    );
+
+    if (currentUser.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const currentRole = currentUser.rows[0].role;
+
+    // Update users table
+    const userResult = await client.query(
+      `UPDATE users 
+       SET name = $1, email = $2, phone = $3, address = $4, role = $5
+       WHERE user_id = $6
+       RETURNING *`,
+      [name, email, phone, address, role, userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Update role-specific table based on the NEW role
+    let roleTableUpdate;
+    switch (role.toLowerCase()) {
+      case 'patient':
+        roleTableUpdate = await client.query(
+          `UPDATE patients 
+           SET first_name = $1, last_name = $2, email = $3, phone = $4, address = $5
+           WHERE user_id = $6
+           RETURNING *`,
+          [name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, userId]
+        );
+        break;
+      
+      case 'doctor':
+        roleTableUpdate = await client.query(
+          `UPDATE doctors 
+           SET first_name = $1, last_name = $2, email = $3, phone = $4, address = $5
+           WHERE user_id = $6
+           RETURNING *`,
+          [name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, userId]
+        );
+        break;
+      
+      case 'pharmacist':
+        roleTableUpdate = await client.query(
+          `UPDATE pharmacists 
+           SET first_name = $1, last_name = $2, email = $3, phone = $4, address = $5
+           WHERE user_id = $6
+           RETURNING *`,
+          [name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, userId]
+        );
+        break;
+      
+      case 'supplier':
+        roleTableUpdate = await client.query(
+          `UPDATE suppliers 
+           SET first_name = $1, last_name = $2, email = $3, phone = $4, address = $5
+           WHERE user_id = $6
+           RETURNING *`,
+          [name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, userId]
+        );
+        break;
+      
+      default:
+        console.log(`No role-specific table update for role: ${role}`);
+    }
+
+    // If role changed, we need to handle moving between tables
+    if (currentRole.toLowerCase() !== role.toLowerCase()) {
+      console.log(`User role changed from ${currentRole} to ${role}, handling table migration`);
+      
+      // Delete from old role table
+      switch (currentRole.toLowerCase()) {
+        case 'patient':
+          await client.query("DELETE FROM patients WHERE user_id = $1", [userId]);
+          break;
+        case 'doctor':
+          await client.query("DELETE FROM doctors WHERE user_id = $1", [userId]);
+          break;
+        case 'pharmacist':
+          await client.query("DELETE FROM pharmacists WHERE user_id = $1", [userId]);
+          break;
+        case 'supplier':
+          await client.query("DELETE FROM suppliers WHERE user_id = $1", [userId]);
+          break;
+      }
+
+      // Insert into new role table
+      switch (role.toLowerCase()) {
+        case 'patient':
+          await client.query(
+            "INSERT INTO patients (user_id, first_name, last_name, email, phone, address, medical_history) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            [userId, name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, 'General patient']
+          );
+          break;
+        case 'doctor':
+          await client.query(
+            "INSERT INTO doctors (user_id, first_name, last_name, email, phone, address, specialty, medical_license) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            [userId, name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, 'General Practitioner', 'LIC-' + Date.now()]
+          );
+          break;
+        case 'pharmacist':
+          await client.query(
+            "INSERT INTO pharmacists (user_id, first_name, last_name, email, phone, address, pharmacy_name, pharmacy_license) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            [userId, name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, name + ' Pharmacy', 'PHARM-' + Date.now()]
+          );
+          break;
+        case 'supplier':
+          await client.query(
+            "INSERT INTO suppliers (user_id, first_name, last_name, email, phone, address, company_name, supplier_reg_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            [userId, name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, name + ' Company', 'SUPP-' + Date.now()]
+          );
+          break;
+      }
+    }
+
+    await client.query('COMMIT');
+    
+    res.json({ 
+      message: "User updated successfully", 
+      user: userResult.rows[0],
+      role_updated: roleTableUpdate ? roleTableUpdate.rows[0] : null
+    });
+    
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Error updating user:", err);
+    res.status(500).json({ error: "Failed to update user: " + err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Create new user
+app.post("/api/admin/users", authenticateAdmin, async (req, res) => {
+  const { name, email, phone, address, role, password } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Insert into users table
+    const userResult = await client.query(
+      `INSERT INTO users (name, email, phone, address, password_hash, role) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING user_id`,
+      [name, email, phone, address, passwordHash, role]
+    );
+
+    const userId = userResult.rows[0].user_id;
+
+    // Insert into role-specific table
+    switch (role.toLowerCase()) {
+      case 'patient':
+        await client.query(
+          "INSERT INTO patients (user_id, first_name, last_name, email, phone, address, medical_history) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+          [userId, name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, 'General patient']
+        );
+        break;
+      case 'doctor':
+        await client.query(
+          "INSERT INTO doctors (user_id, first_name, last_name, email, phone, address, specialty, medical_license) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+          [userId, name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, 'General Practitioner', 'LIC-' + Date.now()]
+        );
+        break;
+      case 'pharmacist':
+        await client.query(
+          "INSERT INTO pharmacists (user_id, first_name, last_name, email, phone, address, pharmacy_name, pharmacy_license) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+          [userId, name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, name + ' Pharmacy', 'PHARM-' + Date.now()]
+        );
+        break;
+      case 'supplier':
+        await client.query(
+          "INSERT INTO suppliers (user_id, first_name, last_name, email, phone, address, company_name, supplier_reg_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+          [userId, name.split(' ')[0], name.split(' ').slice(1).join(' ') || '', email, phone, address, name + ' Company', 'SUPP-' + Date.now()]
+        );
+        break;
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ message: "User created successfully", user_id: userId });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Error creating user:", err);
+    
+    if (err.code === '23505') { // Unique violation
+      res.status(400).json({ error: "Email already exists" });
+    } else {
+      res.status(500).json({ error: "Failed to create user" });
+    }
   } finally {
     client.release();
   }

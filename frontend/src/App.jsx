@@ -12,11 +12,12 @@ import PatientDashboard from "./PatientDashboard";
 import DoctorDashboard from "./DoctorDashboard";
 import SupplierDashboard from "./SupplierDashboard";
 import PharmacistDashboard from "./PharmacistDashboard";
+import AdminDashboard from "./AdminDashboard";
 import Cart from "./Cart";
 
 function Layout({ children }) {
   const location = useLocation();
-  const hideNavbarOn = ["/login", "/patient-dashboard", "/doctor-dashboard", "/supplier-dashboard", , "/pharmacist-dashboard"];
+  const hideNavbarOn = ["/login", "/patient-dashboard", "/doctor-dashboard", "/supplier-dashboard", , "/pharmacist-dashboard", "/admin-dashboard"];
 
   return (
     <>
@@ -43,6 +44,7 @@ function App() {
           <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
           <Route path="/supplier-dashboard" element={<SupplierDashboard />} />
           <Route path="/pharmacist-dashboard" element={<PharmacistDashboard />} />
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/cart" element={<Cart />} />
         </Routes>
       </Layout>
