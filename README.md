@@ -101,11 +101,33 @@ npm run dev
 
 ## 👥 User Roles
 
-* **Admin** – manages system
-* **Patient** – browse medicines, cart, appointments
-* **Doctor** – prescriptions
-* **Pharmacist** – prepares orders
-* **Supplier** – stock updates
+### **🛠️ Admin**
+
+Manages the overall system, oversees user accounts, monitors platform activity, and handles administrative configurations.
+
+### **🧑‍⚕️ Patient**
+
+* Browses and searches medicines
+* Adds items to cart and places orders
+* Uploads prescriptions for verification
+
+### **👨‍⚕️ Doctor**
+
+* Reviews and verifies patient prescriptions
+* Creates and uploads electronic prescriptions
+
+### **💊 Pharmacist**
+
+* Verifies prescriptions from patients and doctors
+* Manages inventory (add, update, remove stock)
+* Prepares orders and updates order status
+* Coordinates with suppliers for restocking
+
+### **🚚 Supplier**
+
+* Manages supply details and stock availability
+* Fulfills pharmacist restocking requests
+* Updates delivery and replenishment status
 
 ---
 
