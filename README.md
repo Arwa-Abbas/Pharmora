@@ -1,4 +1,4 @@
-# 📘 Pharmora – Full Stack Pharmacy Web Application
+# Pharmora – Full Stack Pharmacy Web Application
 
 ## 🚀 Overview
 Pharmora is a full-stack pharmacy, appointments, and medicine-ordering web application.  
