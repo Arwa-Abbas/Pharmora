@@ -17,18 +17,100 @@ It allows patients to browse medicines, manage carts, view doctors, book appoint
 ## 📂 Project Structure
 ```
 
-/frontend
-├── src/
-├── components/
-├── pages/
-└── main.jsx
-
-/backend
-├── index.js
-├── routes/
-├── controllers/
-└── database.js
-
+Pharmora/
+│
+├── frontend/                      # React frontend application
+│   ├── public/                    # Static assets
+│   │   └── images/                # Image assets
+│   │
+│   ├── src/                       # Source files
+│   │   ├── components/            # Reusable React components
+│   │   │   ├── Navbar.jsx         # Navigation bar
+│   │   │   ├── NotificationContext.jsx  # Global notifications
+│   │   │   └── ...
+│   │   │
+│   │   ├── pages/                 # Page components
+│   │   │   ├── Home.jsx           # Landing page
+│   │   │   ├── Login.jsx          # Authentication page
+│   │   │   ├── Products.jsx       # Medicine catalog
+│   │   │   ├── Cart.jsx           # Shopping cart
+│   │   │   ├── Doctors.jsx        # Doctor directory
+│   │   │   ├── Pharmacists.jsx    # Pharmacist directory
+│   │   │   ├── Suppliers.jsx      # Supplier directory
+│   │   │   ├── PatientDashboard.jsx
+│   │   │   ├── DoctorDashboard.jsx
+│   │   │   ├── PharmacistDashboard.jsx
+│   │   │   ├── SupplierDashboard.jsx
+│   │   │   └── AdminDashboard.jsx
+│   │   │
+│   │   ├── styles/                # CSS files
+│   │   │   ├── App.css
+│   │   │   ├── Login.css
+│   │   │   ├── notifications.css
+│   │   │   └── ...
+│   │   │
+│   │   ├── App.jsx                # Main app component
+│   │   ├── main.jsx               # Entry point
+│   │   └── index.css              # Global styles
+│   │
+│   ├── .env                       # Environment variables
+│   ├── package.json               # Dependencies
+│   ├── vite.config.js             # Vite configuration
+│   ├── tailwind.config.js         # TailwindCSS config
+│   ├── postcss.config.js          # PostCSS config
+│   └── index.html                 # HTML template
+│
+├── backend/                       # Node.js backend application
+│   ├── routes/                    # API route definitions
+│   │   ├── auth.js                # Authentication routes
+│   │   ├── medicines.js           # Medicine routes
+│   │   ├── cart.js                # Cart routes
+│   │   ├── prescriptions.js       # Prescription routes
+│   │   ├── appointments.js        # Appointment routes
+│   │   ├── admin.js               # Admin routes
+│   │   └── ...
+│   │
+│   ├── controllers/               # Business logic
+│   │   ├── authController.js
+│   │   ├── medicineController.js
+│   │   ├── cartController.js
+│   │   ├── prescriptionController.js
+│   │   ├── appointmentController.js
+│   │   └── adminController.js
+│   │
+│   ├── middleware/                # Custom middleware
+│   │   ├── auth.js                # Authentication middleware
+│   │   ├── roleCheck.js           # Role-based access control
+│   │   └── errorHandler.js        # Error handling
+│   │
+│   ├── utils/                     # Utility functions
+│   │   ├── database.js            # Database connection
+│   │   ├── validation.js          # Input validation
+│   │   └── helpers.js             # Helper functions
+│   │
+│   ├── config/                    # Configuration files
+│   │   └── database.js            # Database configuration
+│   │
+│   ├── .env                       # Environment variables
+│   ├── .env.example               # Environment template
+│   ├── index.js                   # Server entry point
+│   ├── package.json               # Dependencies
+│   └── server.js                  # Express server setup
+│
+├── database/                      # Database related files
+│   ├── schema.sql                 # Database schema
+│   ├── seed.sql                   # Sample data
+│   └── migrations/                # Database migrations
+│
+├── docs/                          # Documentation
+│   ├── API.md                     # API documentation
+│   ├── SETUP.md                   # Setup guide
+│   └── USER_GUIDE.md              # User manual
+│
+├── .gitignore                     # Git ignore rules
+├── README.md                      # Project documentation
+├── LICENSE                        # License file
+└── package.json                   # Root package.json (optional)
 ```
 
 ---
