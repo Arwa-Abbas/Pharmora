@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNotification } from "./NotificationContext";
 import { 
   Users, 
   Package, 
@@ -22,6 +23,7 @@ import {
 
 function AdminDashboard() {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const user = JSON.parse(localStorage.getItem("user"));
   const [activeTab, setActiveTab] = useState("dashboard");
   const [users, setUsers] = useState([]);
@@ -64,7 +66,7 @@ function AdminDashboard() {
         } else {
           const errorText = await usersRes.text();
           console.error("Failed to fetch users:", errorText);
-          alert("Failed to load users data: " + usersRes.status);
+          showNotification("Failed to load users data", "error");
         }
       } else if (activeTab === "dashboard") {
         const statsRes = await fetch("http://localhost:5000/api/admin/stats");
@@ -73,12 +75,12 @@ function AdminDashboard() {
           setStats(statsData);
         } else {
           console.error("Failed to fetch stats");
-          alert("Failed to load dashboard data");
+          showNotification("Failed to load dashboard data", "error");
         }
       }
     } catch (err) {
       console.error("Error loading data:", err);
-      alert("Failed to load data. Please check if the server is running.");
+      showNotification("Failed to load data. Please check if the server is running.", "error");
     }
     setLoading(false);
   };
@@ -95,15 +97,15 @@ function AdminDashboard() {
       });
 
       if (response.ok) {
-        alert("User deleted successfully!");
+        showNotification("User deleted successfully!", "success");
         loadData();
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to delete user");
+        showNotification(errorData.error || "Failed to delete user", "error");
       }
     } catch (err) {
       console.error("Error deleting user:", err);
-      alert("Failed to delete user. Please check your connection.");
+      showNotification("Failed to delete user. Please check your connection.", "error");
     } finally {
       setLoading(false);
     }
@@ -132,17 +134,17 @@ function AdminDashboard() {
       });
 
       if (response.ok) {
-        alert("User updated successfully!");
+        showNotification("User updated successfully!", "success");
         setEditingUserId(null);
         setEditForm({});
         loadData();
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to update user");
+        showNotification(errorData.error || "Failed to update user", "error");
       }
     } catch (err) {
       console.error("Error updating user:", err);
-      alert("Failed to update user. Please check your connection.");
+      showNotification("Failed to update user. Please check your connection.", "error");
     } finally {
       setLoading(false);
     }
@@ -158,12 +160,12 @@ function AdminDashboard() {
     
     // Basic validation
     if (!newUser.name.trim() || !newUser.email.trim() || !newUser.password.trim()) {
-      alert("Please fill in all required fields");
+      showNotification("Please fill in all required fields", "warning");
       return;
     }
 
     if (newUser.password.length < 6) {
-      alert("Password must be at least 6 characters long");
+      showNotification("Password must be at least 6 characters long", "warning");
       return;
     }
 
@@ -178,7 +180,7 @@ function AdminDashboard() {
       });
 
       if (response.ok) {
-        alert("User created successfully!");
+        showNotification("User created successfully!", "success");
         setShowAddUser(false);
         setNewUser({
           name: "",
@@ -191,11 +193,11 @@ function AdminDashboard() {
         loadData();
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to create user");
+        showNotification(errorData.error || "Failed to create user", "error");
       }
     } catch (err) {
       console.error("Error creating user:", err);
-      alert("Failed to create user. Please check your connection.");
+      showNotification("Failed to create user. Please check your connection.", "error");
     } finally {
       setLoading(false);
     }
@@ -215,19 +217,19 @@ function AdminDashboard() {
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          alert(`CSV report downloaded successfully!`);
+          showNotification(`CSV report downloaded successfully!`, "success");
         } else {
           const reportData = await response.json();
           setReports(reportData);
-          alert(`Report generated! Total records: ${reportData.length}`);
+          showNotification(`Report generated! Total records: ${reportData.length}`, "success");
         }
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to generate report");
+        showNotification(errorData.error || "Failed to generate report", "error");
       }
     } catch (err) {
       console.error("Error generating report:", err);
-      alert("Failed to generate report");
+      showNotification("Failed to generate report", "error");
     }
   };
 
@@ -483,17 +485,6 @@ function AdminDashboard() {
               {/* User Management Tab */}
               {activeTab === "users" && (
                 <div className="space-y-6">
-                  {/* <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-gray-800">User Management</h2>
-                    <button
-                      onClick={() => setShowAddUser(true)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-md"
-                    >
-                      <Plus size={20} />
-                      Add New User
-                    </button>
-                  </div> */}
-
                   {/* Search Bar */}
                   <div className="bg-white rounded-xl shadow-md p-4">
                     <div className="relative">
@@ -507,7 +498,7 @@ function AdminDashboard() {
                       />
                     </div>
                   </div>
-{/* 
+
                   {/* Add User Modal */}
                   {showAddUser && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -610,7 +601,7 @@ function AdminDashboard() {
                         </form>
                       </div>
                     </div>
-                  )} 
+                  )}
                   
                   {/* Users Table */}
                   {filteredUsers.length === 0 ? (
@@ -788,19 +779,18 @@ function AdminDashboard() {
                       </button>
                     </div>
 
-                    {/* In your Reports tab, update the User Growth button text */}
-                        <div className="p-6 bg-white rounded-xl shadow-md border-l-4 border-blue-500 hover:shadow-lg transition">
-                        <Users className="h-8 w-8 text-blue-500 mb-4" />
-                        <h3 className="font-semibold text-gray-900 mb-2">User Distribution</h3>
-                        <p className="text-sm text-gray-600 mb-4">User count and percentage by role</p>
-                        <button
-                            onClick={() => generateReport('users', 'csv')}
-                            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 font-medium"
-                        >
-                            <Download size={16} />
-                            Download CSV
-                        </button>
-                        </div>
+                    <div className="p-6 bg-white rounded-xl shadow-md border-l-4 border-blue-500 hover:shadow-lg transition">
+                      <Users className="h-8 w-8 text-blue-500 mb-4" />
+                      <h3 className="font-semibold text-gray-900 mb-2">User Distribution</h3>
+                      <p className="text-sm text-gray-600 mb-4">User count and percentage by role</p>
+                      <button
+                        onClick={() => generateReport('users', 'csv')}
+                        className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 font-medium"
+                      >
+                        <Download size={16} />
+                        Download CSV
+                      </button>
+                    </div>
 
                     <div className="p-6 bg-white rounded-xl shadow-md border-l-4 border-purple-500 hover:shadow-lg transition">
                       <Package className="h-8 w-8 text-purple-500 mb-4" />

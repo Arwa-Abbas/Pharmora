@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNotification } from "./NotificationContext";
 import {
   Package,
   ShoppingCart,
@@ -18,8 +19,10 @@ import {
   Download,
 } from "lucide-react";
 
+
 function PharmacistDashboard() {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const user = JSON.parse(localStorage.getItem("user"));
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
@@ -110,7 +113,7 @@ function PharmacistDashboard() {
 
     } catch (err) {
       console.error("Error loading data:", err);
-      alert("Failed to load dashboard data: " + err.message);
+      showNotification("Failed to load dashboard data", "error");
     }
     setLoading(false);
   };
@@ -122,7 +125,7 @@ function PharmacistDashboard() {
 
   const handleSendRequest = async () => {
     if (!requestData.supplier_id || !requestData.medicine_id || !requestData.quantity_requested) {
-      alert("Please fill in all required fields");
+      showNotification("Please fill in all required fields", "warning");
       return;
     }
 
@@ -141,7 +144,7 @@ function PharmacistDashboard() {
       });
 
       if (response.ok) {
-        alert("Stock request sent successfully!");
+        showNotification("Stock request sent successfully!", "success");
         setShowRequestForm(false);
         setRequestData({
           supplier_id: "",
@@ -154,11 +157,11 @@ function PharmacistDashboard() {
         loadData();
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to send request");
+        showNotification(errorData.error || "Failed to send request", "error");
       }
     } catch (err) {
       console.error("Error sending request:", err);
-      alert("Failed to send request");
+      showNotification("Failed to send request", "error");
     }
   };
 
@@ -181,15 +184,15 @@ function PharmacistDashboard() {
 
     if (response.ok) {
       const result = await response.json();
-      alert(result.message || "Medicine added to inventory successfully!");
+      showNotification(result.message || "Medicine added to inventory successfully!", "success");
       loadData(); // Reload to refresh the data
     } else {
       const errorData = await response.json();
-      alert(errorData.error || "Failed to add to inventory");
+      showNotification(errorData.error || "Failed to add to inventory", "error");
     }
   } catch (err) {
     console.error("Error adding to inventory:", err);
-    alert("Failed to add to inventory: " + err.message);
+    showNotification("Failed to add to inventory", "error");
   }
 };
 

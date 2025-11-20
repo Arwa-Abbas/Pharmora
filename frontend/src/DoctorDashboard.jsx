@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNotification } from "./NotificationContext";
 import {
   FileText,
   Users,
@@ -18,6 +19,7 @@ import {
 
 function DoctorDashboard() {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const user = JSON.parse(localStorage.getItem("user"));
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(false);
@@ -84,6 +86,7 @@ function DoctorDashboard() {
       setMedicines(medData);
     } catch (err) {
       console.error("Error loading data:", err);
+      showNotification("Error loading dashboard data", "error");
     }
     setLoading(false);
   };
@@ -109,12 +112,14 @@ function DoctorDashboard() {
       );
 
       if (response.ok) {
-        alert(`Prescription ${status.toLowerCase()} successfully!`);
+        showNotification(`Prescription ${status.toLowerCase()} successfully!`, "success");
         loadData();
+      } else {
+        showNotification("Failed to verify prescription", "error");
       }
     } catch (err) {
       console.error("Error verifying prescription:", err);
-      alert("Failed to verify prescription");
+      showNotification("Failed to verify prescription", "error");
     }
   };
 
@@ -141,12 +146,12 @@ function DoctorDashboard() {
 
   const createPrescription = async () => {
     if (!prescriptionForm.patient_id || !prescriptionForm.diagnosis) {
-      alert("Please fill in patient and diagnosis");
+      showNotification("Please fill in patient and diagnosis", "warning");
       return;
     }
 
     if (prescriptionForm.medicines.length === 0) {
-      alert("Please add at least one medicine");
+      showNotification("Please add at least one medicine", "warning");
       return;
     }
 
@@ -161,7 +166,7 @@ function DoctorDashboard() {
       });
 
       if (response.ok) {
-        alert("Prescription created successfully!");
+        showNotification("Prescription created successfully!", "success");
         setPrescriptionForm({
           patient_id: "",
           diagnosis: "",
@@ -170,10 +175,12 @@ function DoctorDashboard() {
         });
         setShowCreatePrescription(false);
         loadData();
+      } else {
+        showNotification("Failed to create prescription", "error");
       }
     } catch (err) {
       console.error("Error creating prescription:", err);
-      alert("Failed to create prescription");
+      showNotification("Failed to create prescription", "error");
     }
   };
 
@@ -186,6 +193,7 @@ function DoctorDashboard() {
       setActiveTab("patient-detail");
     } catch (err) {
       console.error("Error loading patient history:", err);
+      showNotification("Error loading patient history", "error");
     }
   };
 
@@ -197,12 +205,14 @@ function DoctorDashboard() {
       });
 
       if (response.ok) {
-        alert("Patient assigned successfully!");
+        showNotification("Patient assigned successfully!", "success");
         loadData();
+      } else {
+        showNotification("Failed to assign patient", "error");
       }
     } catch (err) {
       console.error("Error assigning patient:", err);
-      alert("Failed to assign patient");
+      showNotification("Failed to assign patient", "error");
     }
   };
 

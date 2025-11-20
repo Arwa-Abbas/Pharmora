@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNotification } from "./NotificationContext";
 import "./Login.css";
 
 function Login() {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const [isSignup, setIsSignup] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
 
@@ -34,102 +36,103 @@ function Login() {
   const validateForm = (fields) => {
     for (let field of fields) {
       if (!formData[field]) {
-        alert(`Please fill in ${field}`);
+        showNotification(`Please fill in ${field}`, "warning");
         return false;
       }
     }
     if (formData.password.length < 8) {
-      alert("Password must be at least 8 characters");
+      showNotification("Password must be at least 8 characters", "warning");
       return false;
     }
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match");
+      showNotification("Passwords do not match", "warning");
       return false;
     }
     return true;
   };
-  
 
-const handleLogin = async () => {
-  if (!formData.email || !formData.password) {
-    alert("Please fill in all fields");
-    return;
-  }
-
-  try {
-    const response = await fetch("http://localhost:5000/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: formData.email,
-        password: formData.password,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      alert(data.error);
+  const handleLogin = async () => {
+    if (!formData.email || !formData.password) {
+      showNotification("Please fill in all fields", "warning");
       return;
     }
 
-    // ✅ Save user to localStorage so Navbar can detect login
-    localStorage.setItem("user", JSON.stringify(data.user));
+    try {
+      const response = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
 
-    alert("Login successful!");
+      const data = await response.json();
 
-    switch (data.user.role) {
-      case "Doctor":
-        navigate("/doctor-dashboard");
-        break;
-      case "Pharmacist":
-        navigate("/pharmacist-dashboard");
-        break;
-      case "Supplier":
-        navigate("/supplier-dashboard");
-        break;
-      case "Patient":
-        navigate("/patient-dashboard");
-        break;
-      case "admin" || "Admin":
-        navigate("/admin-dashboard");
-        break;
-      default:
-        navigate("/");
+      if (!response.ok) {
+        showNotification(data.error, "error");
+        return;
+      }
+
+      // ✅ Save user to localStorage so Navbar can detect login
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      showNotification("Login successful!", "success");
+
+      switch (data.user.role) {
+  case "Doctor":
+    navigate("/doctor-dashboard");
+    break;
+  case "Pharmacist":
+    navigate("/pharmacist-dashboard");
+    break;
+  case "Supplier":
+    navigate("/supplier-dashboard");
+    break;
+  case "Patient":
+    navigate("/patient-dashboard");
+    break;
+  case "Admin":  // Only "Admin" with capital A
+  case "admin":  // Support lowercase as well
+    navigate("/admin-dashboard");
+    break;
+  default:
+    navigate("/");
+}
+    } catch (err) {
+      console.error("Login error:", err);
+      showNotification("Server error. Try again later.", "error");
     }
-  } catch (err) {
-    console.error("Login error:", err);
-    alert("Server error. Try again later.");
-  }
-};
-
-
+  };
 
   const handleSignup = async () => {
-  const roleRequiredFields = roleFields[selectedRole];
-  if (!validateForm(roleRequiredFields)) return;
+    const roleRequiredFields = roleFields[selectedRole];
+    if (!validateForm(roleRequiredFields)) return;
 
-  try {
-    const response = await fetch("http://localhost:5000/api/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: selectedRole, formData }),
-    });
+    try {
+      const response = await fetch("http://localhost:5000/api/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: selectedRole, formData }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) return alert(data.error);
+      if (!response.ok) {
+        showNotification(data.error, "error");
+        return;
+      }
 
-    alert("Account created successfully!");
-    setIsSignup(false);
-    setSelectedRole("");
-    setFormData(initialData);
-    navigate("/");
-  } catch (err) {
-    console.error(err);
-    alert("Server error. Try again later.");
-  }
-};
+      showNotification("Account created successfully!", "success");
+      setIsSignup(false);
+      setSelectedRole("");
+      setFormData(initialData);
+      navigate("/");
+    } catch (err) {
+      console.error(err);
+      showNotification("Server error. Try again later.", "error");
+    }
+  };
 
   // Fields per role
   const roleFields = {

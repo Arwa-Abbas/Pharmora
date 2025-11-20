@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
+import { useNotification } from "./NotificationContext";
 
 function Cart() {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const user = JSON.parse(localStorage.getItem("user"));
+  const { showNotification } = useNotification();
 
   // Fetch cart items
   const loadCart = () => {
@@ -17,6 +19,7 @@ function Cart() {
       })
       .catch((err) => {
         console.error("Error fetching cart:", err);
+        showNotification("Error loading cart items", "error");
         setLoading(false);
       });
   };
@@ -40,14 +43,20 @@ function Cart() {
         method: "DELETE",
       });
       setCart(cart.filter((item) => item.cart_item_id !== cartItemId));
+      showNotification("Item removed from cart", "success");
     } catch (err) {
       console.error("Error removing item:", err);
+      showNotification("Error removing item from cart", "error");
     }
   };
 
   // Update quantity
   const updateQuantity = async (cartItemId, newQuantity) => {
-    if (newQuantity < 1) return; // Prevent invalid quantities
+    if (newQuantity < 1) {
+      showNotification("Quantity cannot be less than 1", "warning");
+      return; // Prevent invalid quantities
+    }
+    
     try {
       const res = await fetch(`http://localhost:5000/api/cart/${cartItemId}`, {
         method: "PUT",
@@ -56,8 +65,10 @@ function Cart() {
       });
       const updatedItem = await res.json();
       setCart(cart.map((item) => (item.cart_item_id === cartItemId ? updatedItem : item)));
+      showNotification("Quantity updated", "success");
     } catch (err) {
       console.error("Error updating quantity:", err);
+      showNotification("Error updating quantity", "error");
     }
   };
 

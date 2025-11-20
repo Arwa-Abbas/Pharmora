@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNotification } from "./NotificationContext";
 import {
   ShoppingCart,
   FileText,
@@ -22,6 +23,7 @@ import {
 
 function PatientDashboard() {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const user = JSON.parse(localStorage.getItem("user"));
   const [activeTab, setActiveTab] = useState("cart");
   const [cart, setCart] = useState([]);
@@ -134,6 +136,7 @@ function PatientDashboard() {
       loadData();
     } catch (err) {
       console.error("Error updating quantity:", err);
+      showNotification("Error updating quantity", "error");
     }
   };
 
@@ -143,8 +146,10 @@ function PatientDashboard() {
         method: "DELETE",
       });
       loadData();
+      showNotification("Item removed from cart", "success");
     } catch (err) {
       console.error("Error removing item:", err);
+      showNotification("Error removing item from cart", "error");
     }
   };
 
@@ -203,7 +208,7 @@ function PatientDashboard() {
       });
 
       if (response.ok) {
-        alert("Prescription uploaded successfully!");
+        showNotification("Prescription uploaded successfully!", "success");
         setPrescriptionFile(null);
         setPrescriptionNotes("");
         setSelectedDoctorId("");
@@ -213,10 +218,12 @@ function PatientDashboard() {
       } else {
         const errorData = await response.json();
         setUploadError(errorData.error || "Failed to upload prescription");
+        showNotification(errorData.error || "Failed to upload prescription", "error");
       }
     } catch (err) {
       console.error("Error uploading prescription:", err);
       setUploadError("Failed to upload prescription");
+      showNotification("Failed to upload prescription", "error");
     }
   };
 
@@ -251,12 +258,12 @@ function PatientDashboard() {
 
   const updatePrescription = async () => {
     if (!editSelectedDoctorId) {
-      alert("Please select a doctor");
+      showNotification("Please select a doctor", "warning");
       return;
     }
 
     if (!editSelectedOrderId) {
-      alert("Please select an order to link");
+      showNotification("Please select an order to link", "warning");
       return;
     }
 
@@ -274,21 +281,21 @@ function PatientDashboard() {
 
       if (response.ok) {
         const updatedPrescription = await response.json();
-        alert("Prescription updated successfully!");
+        showNotification("Prescription updated successfully!", "success");
         cancelEdit();
         loadData();
       } else {
         // Handle different error statuses
         if (response.status === 404) {
-          alert("Prescription not found. It may have been deleted.");
+          showNotification("Prescription not found. It may have been deleted.", "error");
         } else {
           const errorData = await response.json();
-          alert(errorData.error || "Failed to update prescription");
+          showNotification(errorData.error || "Failed to update prescription", "error");
         }
       }
     } catch (err) {
       console.error("Error updating prescription:", err);
-      alert("Failed to update prescription. Please check your connection.");
+      showNotification("Failed to update prescription. Please check your connection.", "error");
     }
   };
 
@@ -303,18 +310,18 @@ function PatientDashboard() {
       });
 
       if (response.ok) {
-        alert("Prescription deleted successfully!");
+        showNotification("Prescription deleted successfully!", "success");
         loadData();
       } else {
         if (response.status === 404) {
-          alert("Prescription not found. It may have already been deleted.");
+          showNotification("Prescription not found. It may have already been deleted.", "error");
         } else {
-          alert("Failed to delete prescription");
+          showNotification("Failed to delete prescription", "error");
         }
       }
     } catch (err) {
       console.error("Error deleting prescription:", err);
-      alert("Failed to delete prescription. Please check your connection.");
+      showNotification("Failed to delete prescription. Please check your connection.", "error");
     }
   };
 
@@ -324,12 +331,12 @@ function PatientDashboard() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
-      alert("Your cart is empty");
+      showNotification("Your cart is empty", "warning");
       return;
     }
 
     if (!deliveryAddress.trim()) {
-      alert("Please enter a delivery address");
+      showNotification("Please enter a delivery address", "warning");
       return;
     }
 
@@ -350,72 +357,74 @@ function PatientDashboard() {
       });
 
       if (response.ok) {
-        alert("Order placed successfully!");
+        showNotification("Order placed successfully!", "success");
         setDeliveryAddress("");
         loadData();
         setActiveTab("orders");
+      } else {
+        showNotification("Failed to place order", "error");
       }
     } catch (err) {
       console.error("Error placing order:", err);
-      alert("Failed to place order");
+      showNotification("Failed to place order", "error");
     }
   };
 
   // Payment functions
-const handlePayment = async () => {
-  if (!selectedOrderForPayment) return;
+  const handlePayment = async () => {
+    if (!selectedOrderForPayment) return;
 
-  try {
-    console.log("Sending payment request...");
-    
-    const response = await fetch("http://localhost:5000/api/payments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        order_id: selectedOrderForPayment.order_id,
-        user_id: user.id,
-        amount: selectedOrderForPayment.total_price,
-        method: paymentDetails.paymentMethod,
-        card_last_four: paymentDetails.cardNumber.slice(-4)
-      }),
-    });
-
-    console.log("Response status:", response.status);
-
-    if (response.ok) {
-      const result = await response.json();
-      console.log("Payment successful:", result);
-      alert("Payment successful!");
-      setShowPaymentModal(false);
-      setPaymentDetails({
-        cardNumber: "",
-        expiryDate: "",
-        cvv: "",
-        cardHolder: "",
-        paymentMethod: "credit_card"
+    try {
+      console.log("Sending payment request...");
+      
+      const response = await fetch("http://localhost:5000/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: selectedOrderForPayment.order_id,
+          user_id: user.id,
+          amount: selectedOrderForPayment.total_price,
+          method: paymentDetails.paymentMethod,
+          card_last_four: paymentDetails.cardNumber.slice(-4)
+        }),
       });
-      setSelectedOrderForPayment(null);
-      loadData();
-    } else {
-      // Try to get error message
-      try {
-        const errorData = await response.json();
-        console.log("Payment failed with error:", errorData);
-        alert(`Payment failed: ${errorData.error}`);
-      } catch (parseError) {
-        console.log("Payment failed - couldn't parse error response");
-        alert("Payment failed - server error");
+
+      console.log("Response status:", response.status);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Payment successful:", result);
+        showNotification("Payment successful!", "success");
+        setShowPaymentModal(false);
+        setPaymentDetails({
+          cardNumber: "",
+          expiryDate: "",
+          cvv: "",
+          cardHolder: "",
+          paymentMethod: "credit_card"
+        });
+        setSelectedOrderForPayment(null);
+        loadData();
+      } else {
+        // Try to get error message
+        try {
+          const errorData = await response.json();
+          console.log("Payment failed with error:", errorData);
+          showNotification(`Payment failed: ${errorData.error}`, "error");
+        } catch (parseError) {
+          console.log("Payment failed - couldn't parse error response");
+          showNotification("Payment failed - server error", "error");
+        }
       }
+    } catch (err) {
+      console.error("Network error:", err);
+      showNotification("Payment failed - network error", "error");
     }
-  } catch (err) {
-    console.error("Network error:", err);
-    alert("Payment failed - network error");
-  }
-};
+  };
 
   const initiatePayment = (order) => {
     if (!order.prescription_id) {
-      alert("Please link a prescription to this order before making payment");
+      showNotification("Please link a prescription to this order before making payment", "warning");
       return;
     }
     setSelectedOrderForPayment(order);
