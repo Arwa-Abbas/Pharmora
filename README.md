@@ -131,14 +131,6 @@ Manages the overall system, oversees user accounts, monitors platform activity, 
 
 ---
 
-## 📌 Notes
-
-* Passwords are plain text only for development.
-* Hashing should be added before deployment.
-* RLS should remain **disabled** unless configured properly.
-
----
-
 ## Group Members
 
 * Nabira Khan
