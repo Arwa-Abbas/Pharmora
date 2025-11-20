@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Edit,
   X,
+  CheckCircle,
 } from "lucide-react";
 
 function PatientDashboard() {
@@ -44,6 +45,18 @@ function PatientDashboard() {
   const [editPrescriptionNotes, setEditPrescriptionNotes] = useState("");
   const [editSelectedDoctorId, setEditSelectedDoctorId] = useState("");
   const [editSelectedOrderId, setEditSelectedOrderId] = useState("");
+
+  // Payment states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState(null);
+  const [paymentDetails, setPaymentDetails] = useState({
+    cardNumber: "",
+    expiryDate: "",
+    cvv: "",
+    cardHolder: "",
+    paymentMethod: "credit_card"
+  });
+  const [payments, setPayments] = useState([]);
 
   useEffect(() => {
     if (!user || user.role !== "Patient") {
@@ -87,6 +100,17 @@ function PatientDashboard() {
       const doctorsRes = await fetch("http://localhost:5000/api/doctors");
       const doctorsData = await doctorsRes.json();
       setDoctors(doctorsData);
+
+      // Load payments
+      try {
+        const paymentsRes = await fetch(`http://localhost:5000/api/payments/${user.id}`);
+        if (paymentsRes.ok) {
+          const paymentsData = await paymentsRes.json();
+          setPayments(paymentsData);
+        }
+      } catch (err) {
+        console.log("Payments endpoint not available yet");
+      }
     } catch (err) {
       console.error("Error loading data:", err);
     }
@@ -337,6 +361,67 @@ function PatientDashboard() {
     }
   };
 
+  // Payment functions
+const handlePayment = async () => {
+  if (!selectedOrderForPayment) return;
+
+  try {
+    console.log("Sending payment request...");
+    
+    const response = await fetch("http://localhost:5000/api/payments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_id: selectedOrderForPayment.order_id,
+        user_id: user.id,
+        amount: selectedOrderForPayment.total_price,
+        method: paymentDetails.paymentMethod,
+        card_last_four: paymentDetails.cardNumber.slice(-4)
+      }),
+    });
+
+    console.log("Response status:", response.status);
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log("Payment successful:", result);
+      alert("Payment successful!");
+      setShowPaymentModal(false);
+      setPaymentDetails({
+        cardNumber: "",
+        expiryDate: "",
+        cvv: "",
+        cardHolder: "",
+        paymentMethod: "credit_card"
+      });
+      setSelectedOrderForPayment(null);
+      loadData();
+    } else {
+      // Try to get error message
+      try {
+        const errorData = await response.json();
+        console.log("Payment failed with error:", errorData);
+        alert(`Payment failed: ${errorData.error}`);
+      } catch (parseError) {
+        console.log("Payment failed - couldn't parse error response");
+        alert("Payment failed - server error");
+      }
+    }
+  } catch (err) {
+    console.error("Network error:", err);
+    alert("Payment failed - network error");
+  }
+};
+
+  const initiatePayment = (order) => {
+    if (!order.prescription_id) {
+      alert("Please link a prescription to this order before making payment");
+      return;
+    }
+    setSelectedOrderForPayment(order);
+    setShowPaymentModal(true);
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -380,6 +465,18 @@ function PatientDashboard() {
           >
             <Package size={20} />
             <span>My Orders</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("payments")}
+            className={`w-full flex items-center gap-3 p-3 rounded-lg transition ${
+              activeTab === "payments"
+                ? "bg-white text-cyan-600"
+                : "hover:bg-cyan-500"
+            }`}
+          >
+            <CreditCard size={20} />
+            <span>Payment History</span>
           </button>
 
           <button
@@ -883,82 +980,163 @@ function PatientDashboard() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {orders.map((order) => (
-                    <div
-                      key={order.order_id}
-                      className="bg-white rounded-lg shadow p-6"
-                    >
-                      <div className="flex justify-between items-start mb-4">
+                  {orders.map((order) => {
+                    const orderPayment = payments.find(p => p.order_id === order.order_id);
+                    return (
+                      <div
+                        key={order.order_id}
+                        className="bg-white rounded-lg shadow p-6"
+                      >
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-semibold text-lg">
+                              Order #{order.order_id}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {new Date(order.order_date).toLocaleDateString()}
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {order.delivery_address}
+                            </p>
+                            {order.prescription_id ? (
+                              <div className="flex items-center gap-2 mt-1">
+                                <Link size={16} className="text-green-600" />
+                                <p className="text-sm text-green-600">
+                                  Linked to Prescription #{order.prescription_id}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 mt-1">
+                                <AlertCircle size={16} className="text-yellow-600" />
+                                <p className="text-sm text-yellow-600">
+                                  No prescription linked - upload one in the Prescriptions tab
+                                </p>
+                              </div>
+                            )}
+                            
+                            {/* Payment Status */}
+                            {orderPayment ? (
+                              <div className="flex items-center gap-2 mt-1">
+                                <CheckCircle size={16} className="text-green-600" />
+                                <p className="text-sm text-green-600">
+                                  Paid on {new Date(orderPayment.date).toLocaleDateString()} 
+                                  ({orderPayment.method})
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 mt-1">
+                                <AlertCircle size={16} className="text-orange-600" />
+                                <p className="text-sm text-orange-600">
+                                  Payment Pending
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span
+                              className={`px-3 py-1 rounded-full text-sm ${
+                                order.status === "Delivered"
+                                  ? "bg-green-100 text-green-700"
+                                  : order.status === "Shipped"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : order.status === "Processing"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {order.status}
+                            </span>
+                            <p className="text-lg font-bold text-gray-900 mt-2">
+                              Rs. {order.total_price}
+                            </p>
+                            
+                            {/* Payment Button */}
+                            {!orderPayment && order.prescription_id && (
+                              <button
+                                onClick={() => initiatePayment(order)}
+                                className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                              >
+                                Proceed to Payment
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4">
+                          <h4 className="font-semibold mb-3">Order Items:</h4>
+                          <div className="space-y-2">
+                            {order.items.map((item, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-4 p-2 bg-gray-50 rounded"
+                              >
+                                <img
+                                  src={item.image_url || "/placeholder.jpg"}
+                                  alt={item.medicine_name}
+                                  className="w-16 h-16 object-cover rounded"
+                                />
+                                <div className="flex-1">
+                                  <p className="font-medium">
+                                    {item.medicine_name}
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    Quantity: {item.quantity}
+                                  </p>
+                                </div>
+                                <p className="font-semibold">Rs. {item.price}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payments Tab */}
+          {activeTab === "payments" && (
+            <div>
+              <h2 className="text-2xl font-bold mb-6">Payment History</h2>
+
+              {payments.length === 0 ? (
+                <div className="text-center py-12">
+                  <CreditCard size={64} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-600">No payment history</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Your payment history will appear here after you make payments
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {payments.map((payment) => (
+                    <div key={payment.payment_id} className="bg-white rounded-lg shadow p-6">
+                      <div className="flex justify-between items-start">
                         <div>
                           <h3 className="font-semibold text-lg">
-                            Order #{order.order_id}
+                            Payment #{payment.payment_id}
                           </h3>
                           <p className="text-sm text-gray-600">
-                            {new Date(order.order_date).toLocaleDateString()}
+                            Order #{payment.order_id}
                           </p>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {order.delivery_address}
+                          <p className="text-sm text-gray-600">
+                            Date: {new Date(payment.date).toLocaleDateString()}
                           </p>
-                          {order.prescription_id ? (
-                            <div className="flex items-center gap-2 mt-1">
-                              <Link size={16} className="text-green-600" />
-                              <p className="text-sm text-green-600">
-                                Linked to Prescription #{order.prescription_id}
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 mt-1">
-                              <AlertCircle size={16} className="text-yellow-600" />
-                              <p className="text-sm text-yellow-600">
-                                No prescription linked - upload one in the Prescriptions tab
-                              </p>
-                            </div>
+                          <p className="text-sm text-gray-600 capitalize">
+                            Method: {payment.method.replace('_', ' ')}
+                          </p>
+                          {payment.card_last_four && (
+                            <p className="text-sm text-gray-600">
+                              Card: **** **** **** {payment.card_last_four}
+                            </p>
                           )}
                         </div>
                         <div className="text-right">
-                          <span
-                            className={`px-3 py-1 rounded-full text-sm ${
-                              order.status === "Delivered"
-                                ? "bg-green-100 text-green-700"
-                                : order.status === "Shipped"
-                                ? "bg-blue-100 text-blue-700"
-                                : order.status === "Processing"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {order.status}
-                          </span>
-                          <p className="text-lg font-bold text-gray-900 mt-2">
-                            Rs. {order.total_price}
+                          <p className="text-lg font-bold text-green-700">
+                            Rs. {payment.amount}
                           </p>
-                        </div>
-                      </div>
-
-                      <div className="border-t pt-4">
-                        <h4 className="font-semibold mb-3">Order Items:</h4>
-                        <div className="space-y-2">
-                          {order.items.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center gap-4 p-2 bg-gray-50 rounded"
-                            >
-                              <img
-                                src={item.image_url || "/placeholder.jpg"}
-                                alt={item.medicine_name}
-                                className="w-16 h-16 object-cover rounded"
-                              />
-                              <div className="flex-1">
-                                <p className="font-medium">
-                                  {item.medicine_name}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  Quantity: {item.quantity}
-                                </p>
-                              </div>
-                              <p className="font-semibold">Rs. {item.price}</p>
-                            </div>
-                          ))}
                         </div>
                       </div>
                     </div>
@@ -991,6 +1169,133 @@ function PatientDashboard() {
                       Role
                     </label>
                     <p className="text-lg font-semibold">{user?.role}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Payment Modal */}
+          {showPaymentModal && selectedOrderForPayment && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-semibold">Complete Payment</h3>
+                    <button
+                      onClick={() => setShowPaymentModal(false)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-semibold">Order Summary</h4>
+                      <p>Order #{selectedOrderForPayment.order_id}</p>
+                      <p className="text-lg font-bold text-green-700">
+                        Total: Rs. {selectedOrderForPayment.total_price}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Payment Method
+                      </label>
+                      <select
+                        value={paymentDetails.paymentMethod}
+                        onChange={(e) => setPaymentDetails({
+                          ...paymentDetails,
+                          paymentMethod: e.target.value
+                        })}
+                        className="w-full p-3 border rounded-lg"
+                      >
+                        <option value="credit_card">Credit Card</option>
+                        <option value="debit_card">Debit Card</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                      </select>
+                    </div>
+
+                    {paymentDetails.paymentMethod.includes('card') && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium mb-2">
+                            Card Number
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="1234 5678 9012 3456"
+                            value={paymentDetails.cardNumber}
+                            onChange={(e) => setPaymentDetails({
+                              ...paymentDetails,
+                              cardNumber: e.target.value
+                            })}
+                            className="w-full p-3 border rounded-lg"
+                            maxLength={16}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Expiry Date
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="MM/YY"
+                              value={paymentDetails.expiryDate}
+                              onChange={(e) => setPaymentDetails({
+                                ...paymentDetails,
+                                expiryDate: e.target.value
+                              })}
+                              className="w-full p-3 border rounded-lg"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              CVV
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="123"
+                              value={paymentDetails.cvv}
+                              onChange={(e) => setPaymentDetails({
+                                ...paymentDetails,
+                                cvv: e.target.value
+                              })}
+                              className="w-full p-3 border rounded-lg"
+                              maxLength={3}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2">
+                            Card Holder Name
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="John Doe"
+                            value={paymentDetails.cardHolder}
+                            onChange={(e) => setPaymentDetails({
+                              ...paymentDetails,
+                              cardHolder: e.target.value
+                            })}
+                            className="w-full p-3 border rounded-lg"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <button
+                      onClick={handlePayment}
+                      disabled={paymentDetails.paymentMethod.includes('card') && 
+                        (!paymentDetails.cardNumber || !paymentDetails.expiryDate || !paymentDetails.cvv || !paymentDetails.cardHolder)}
+                      className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Pay Rs. {selectedOrderForPayment.total_price}
+                    </button>
                   </div>
                 </div>
               </div>

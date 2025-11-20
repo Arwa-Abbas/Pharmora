@@ -2492,6 +2492,63 @@ app.post("/api/admin/users", authenticateAdmin, async (req, res) => {
   }
 });
 
+// ============= PAYMENT ROUTES =============
+
+
+// Get user's payments
+app.get("/api/payments/:userId", async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT p.*, o.order_date
+       FROM payment p
+       JOIN orders o ON p.order_id = o.order_id
+       WHERE p.user_id = $1
+       ORDER BY p.date DESC`,
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching payments:", err);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
+// Create payment
+app.post("/api/payments", async (req, res) => {
+  const { order_id, user_id, amount, method, card_last_four } = req.body;
+  
+  console.log("Payment request received:", { order_id, user_id, amount, method, card_last_four });
+  
+  try {
+    // Check if payment already exists for this order
+    const existingPayment = await pool.query(
+      "SELECT * FROM payment WHERE order_id = $1",
+      [order_id]
+    );
+
+    if (existingPayment.rows.length > 0) {
+      console.log("Payment already exists for order:", order_id);
+      return res.status(400).json({ error: "Payment already exists for this order" });
+    }
+
+    // Create payment
+    const paymentResult = await pool.query(
+      `INSERT INTO payment (order_id, user_id, amount, method, card_last_four, date)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [order_id, user_id, amount, method, card_last_four]
+    );
+
+    console.log("Payment created successfully:", paymentResult.rows[0]);
+    res.status(201).json(paymentResult.rows[0]);
+  } catch (err) {
+    console.error("Error creating payment:", err);
+    console.error("Full error details:", err.message, err.stack);
+    res.status(500).json({ error: "Failed to process payment: " + err.message });
+  }
+});
+
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
