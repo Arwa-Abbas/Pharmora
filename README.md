@@ -101,7 +101,7 @@ Pharmora/
 ├── database/                      # Database related files
 │   ├── schema.sql                 # Database schema
 │   ├── seed.sql                   # Sample data
-│   └── migrations/                # Database migrations
+│   └── migrations/                # Future Database migrations
 │
 ├── .gitignore                     # Git ignore rules
 ├── README.md                      # Project documentation
@@ -131,7 +131,32 @@ Pharmora/
 etc
 ---
 
-## ⚙️ Environment Setup
+## 🗄️ Database Setup
+
+Pharmora uses **Supabase (PostgreSQL)**. Follow these steps to set up the database:
+
+### **1️⃣ Create a Supabase Project**
+1. Go to [Supabase](https://app.supabase.com/) and create a new project.  
+2. Note your **database credentials** (host, user, password, database name, port).  
+
+### **2️⃣ Apply the Database Schema**
+Run the `schema.sql` file to create all tables:
+
+```bash
+-- Using psql CLI
+psql -h DB_HOST -U DB_USER -d DB_NAME -f database/schema.sql
+
+-- Or use Supabase SQL Editor
+-- Open SQL Editor → Paste contents of schema.sql → Run
+
+```
+
+### **3️⃣ Populate Initial Data**
+Run `seed.sql` to add sample data:
+psql -h DB_HOST -U DB_USER -d DB_NAME -f database/seed.sql
+
+
+## ⚙️ Configure Environment Variables
 
 Create **`/backend/.env`**:
 
@@ -143,6 +168,19 @@ DB_HOST=aws-1-ap-south-1.pooler.supabase.com
 DB_PORT=5432
 DB_NAME=postgres
 PORT=5000
+
+```
+OR
+
+```
+
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_HOST=your_db_host
+DB_PORT=5432
+DB_NAME=your_db_name
+PORT=5000
+
 
 ````
 
