@@ -1,8 +1,9 @@
 # Pharmora – Full Stack Pharmacy Web Application
 
 ## 🚀 Overview
-Pharmora is a full-stack pharmacy, appointments, and medicine-ordering web application.  
-It allows patients to browse medicines, manage carts, view doctors, book appointments, and access dashboards based on role (Patient, Doctor, Pharmacist, Supplier, Admin).
+Pharmora is a full-stack web application for pharmacy services, medical appointments, and online medicine ordering.
+It allows patients to browse medicines, manage carts and orders, and view available doctors and pharmacists.
+Each user - Patient, Doctor, Pharmacist, Supplier, and Admin has access to their own dedicated dashboard with role-specific features.
 
 ---
 
@@ -102,11 +103,6 @@ Pharmora/
 │   ├── seed.sql                   # Sample data
 │   └── migrations/                # Database migrations
 │
-├── docs/                          # Documentation
-│   ├── API.md                     # API documentation
-│   ├── SETUP.md                   # Setup guide
-│   └── USER_GUIDE.md              # User manual
-│
 ├── .gitignore                     # Git ignore rules
 ├── README.md                      # Project documentation
 ├── LICENSE                        # License file
@@ -121,18 +117,18 @@ Pharmora/
 - Browse All Medicines  
 - Add to Cart + View Cart  
 - View Doctors, Pharmacists & Suppliers  
-- Prescriptions & Appointments (backend & DB ready)  
+- Prescriptions Verification & Stock Requests
 
 ---
 
-## 🗄️ Database Tables (Key)
+## 🗄️ Database Tables 
 - **users**
 - **medicines**
-- **cart**
+- **cart_items**
 - **prescriptions**
 - **prescribed_medicines**
-- **appointments**
-
+- **supplier_inventory**
+etc
 ---
 
 ## ⚙️ Environment Setup
@@ -185,13 +181,14 @@ npm run dev
 
 ### **🛠️ Admin**
 
-Manages the overall system, oversees user accounts, monitors platform activity, and handles administrative configurations.
+Manages the overall system, oversees user accounts for all roles , monitors platform activity, and generates reports of sales, user and medicines.
 
 ### **🧑‍⚕️ Patient**
 
 * Browses and searches medicines
 * Adds items to cart and places orders
 * Uploads prescriptions for verification
+* Makes payments for placed orders
 
 ### **👨‍⚕️ Doctor**
 
@@ -200,8 +197,7 @@ Manages the overall system, oversees user accounts, monitors platform activity, 
 
 ### **💊 Pharmacist**
 
-* Verifies prescriptions from patients and doctors
-* Manages inventory (add, update, remove stock)
+* Manages medicine inventory by requesting stock from supplier
 * Prepares orders and updates order status
 * Coordinates with suppliers for restocking
 
@@ -209,7 +205,7 @@ Manages the overall system, oversees user accounts, monitors platform activity, 
 
 * Manages supply details and stock availability
 * Fulfills pharmacist restocking requests
-* Updates delivery and replenishment status
+* Ships stock and provides delivery to pharmacist.
 
 ---
 
