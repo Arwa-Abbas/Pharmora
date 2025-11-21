@@ -71,7 +71,7 @@ function Pharmacists() {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      {/* ✅ Original Banner - Kept the same */}
+      {/* Banner */}
       <div className="w-full h-64 overflow-hidden">
         <img
           src="/images/pharmacists.jpg"

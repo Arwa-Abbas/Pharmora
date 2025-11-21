@@ -1368,7 +1368,7 @@ function DeliveryCard({ request, onDeliver }) {
       </p>
 
       {request.delivery_status === "Delivered" || request.status === "Completed" ? (
-        <></> // removed the text completely
+        <></> 
       ) : (
         <p className="text-blue-700 mt-2">Expected delivery soon</p>
       )}
