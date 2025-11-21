@@ -5,6 +5,8 @@ Pharmora is a full-stack web application for pharmacy services, medical appointm
 It allows patients to browse medicines, manage carts and orders, and view available doctors and pharmacists.
 Each user - Patient, Doctor, Pharmacist, Supplier, and Admin has access to their own dedicated dashboard with role-specific features.
 
+[Demo Video Folder (Google Drive)](https://drive.google.com/drive/folders/1d4BsMWpF2vKeaHTiuW_f0FZXlM6NqM9r?usp=sharing)
+
 ---
 
 ## 🏗️ Tech Stack
