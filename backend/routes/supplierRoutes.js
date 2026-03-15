@@ -12,15 +12,16 @@ const {
 } = require('../controllers/supplierController');
 
 const { getSupplierRequests } = require('../controllers/stockRequestController');
+const { authenticateUser } = require('../middleware/auth');
 
 router.get("/api/suppliers", getAllSuppliers);
 router.get("/api/suppliers/:supplierId", getSupplierById);
-router.put("/api/suppliers/:supplierId", updateSupplierProfile);
-router.get("/api/suppliers/:supplierId/inventory", getSupplierInventory);
-router.get("/api/suppliers/:supplierId/stats", getSupplierStats);
-router.get("/api/supplier/:supplierId/stock-requests", getSupplierRequests);
+router.put("/api/suppliers/:supplierId", authenticateUser, updateSupplierProfile);
+router.get("/api/suppliers/:supplierId/inventory", authenticateUser, getSupplierInventory);
+router.get("/api/suppliers/:supplierId/stats", authenticateUser, getSupplierStats);
+router.get("/api/supplier/:supplierId/stock-requests", authenticateUser, getSupplierRequests);
 
-router.get("/api/supplier/user/:userId", async (req, res) => {
+router.get("/api/supplier/user/:userId", authenticateUser, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -51,7 +52,7 @@ router.get("/api/supplier/user/:userId", async (req, res) => {
   }
 });
 
-router.get("/api/supplier/:supplierId/stats", async (req, res) => {
+router.get("/api/supplier/:supplierId/stats", authenticateUser, async (req, res) => {
   try {
     const { supplierId } = req.params;
 
@@ -90,7 +91,7 @@ router.get("/api/supplier/:supplierId/stats", async (req, res) => {
   }
 });
 
-router.get("/api/supplier/:supplierId/inventory", async (req, res) => {
+router.get("/api/supplier/:supplierId/inventory", authenticateUser, async (req, res) => {
   try {
     const { supplierId } = req.params;
 
@@ -110,7 +111,7 @@ router.get("/api/supplier/:supplierId/inventory", async (req, res) => {
   }
 });
 
-router.post("/api/supplier/:supplierId/inventory", async (req, res) => {
+router.post("/api/supplier/:supplierId/inventory", authenticateUser, async (req, res) => {
   try {
     const { supplierId } = req.params;
     const { medicine_id, quantity_available, reorder_level, purchase_price, selling_price, expiry_date } = req.body;
@@ -140,7 +141,7 @@ router.post("/api/supplier/:supplierId/inventory", async (req, res) => {
   }
 });
 
-router.put("/api/supplier/inventory/:inventoryId", async (req, res) => {
+router.put("/api/supplier/inventory/:inventoryId", authenticateUser, async (req, res) => {
   try {
     const { inventoryId } = req.params;
     const { quantity_available, reorder_level, purchase_price, selling_price, expiry_date } = req.body;
@@ -169,7 +170,7 @@ router.put("/api/supplier/inventory/:inventoryId", async (req, res) => {
   }
 });
 
-router.delete("/api/supplier/inventory/:inventoryId", async (req, res) => {
+router.delete("/api/supplier/inventory/:inventoryId", authenticateUser, async (req, res) => {
   try {
     const { inventoryId } = req.params;
 

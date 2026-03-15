@@ -66,10 +66,47 @@ const acceptRequest = async (req, res) => {
   try {
     await client.query('BEGIN');
 
+    const reqResult = await client.query(
+      `SELECT sr.medicine_id, sr.quantity_requested, sr.supplier_id,
+              m.name as medicine_name,
+              si.quantity_available
+       FROM stock_requests sr
+       JOIN medicines m ON sr.medicine_id = m.medicine_id
+       LEFT JOIN supplier_inventory si
+         ON si.medicine_id = sr.medicine_id
+         AND si.supplier_id = (SELECT supplier_id FROM suppliers WHERE user_id = sr.supplier_id)
+       WHERE sr.request_id = $1`,
+      [requestId]
+    );
+
+    if (reqResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Request not found" });
+    }
+
+    const { medicine_id, quantity_requested, supplier_id, medicine_name, quantity_available } = reqResult.rows[0];
+
+    if (quantity_available === null || quantity_available < quantity_requested) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: 'Insufficient stock',
+        item: {
+          name: medicine_name,
+          available: quantity_available || 0,
+          required: quantity_requested
+        }
+      });
+    }
+
     await client.query(
-      `UPDATE stock_requests
-       SET status = 'Accepted', updated_at = NOW()
-       WHERE request_id = $1`,
+      `UPDATE supplier_inventory
+       SET quantity_available = quantity_available - $1, updated_at = NOW()
+       WHERE supplier_id = (SELECT supplier_id FROM suppliers WHERE user_id = $2) AND medicine_id = $3`,
+      [quantity_requested, supplier_id, medicine_id]
+    );
+
+    await client.query(
+      `UPDATE stock_requests SET status = 'Accepted', updated_at = NOW() WHERE request_id = $1`,
       [requestId]
     );
 
@@ -82,7 +119,7 @@ const acceptRequest = async (req, res) => {
     );
 
     await client.query('COMMIT');
-    res.json({ message: "Request accepted successfully" });
+    res.json({ message: "Request accepted and stock reserved successfully" });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error("Error accepting request:", err);
@@ -94,13 +131,14 @@ const acceptRequest = async (req, res) => {
 
 const rejectRequest = async (req, res) => {
   const { requestId } = req.params;
+  const { reason } = req.body;
 
   try {
     await pool.query(
       `UPDATE stock_requests
-       SET status = 'Rejected', updated_at = NOW()
-       WHERE request_id = $1`,
-      [requestId]
+       SET status = 'Rejected', rejection_reason = $1, updated_at = NOW()
+       WHERE request_id = $2`,
+      [reason || null, requestId]
     );
 
     res.json({ message: "Request rejected" });
@@ -127,15 +165,6 @@ const shipOrder = async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: "Request not found" });
     }
-
-    const { medicine_id, quantity_requested, supplier_id } = reqResult.rows[0];
-
-    await client.query(
-      `UPDATE supplier_inventory
-       SET quantity_available = quantity_available - $1, updated_at = NOW()
-       WHERE supplier_id = $2 AND medicine_id = $3`,
-      [quantity_requested, supplier_id, medicine_id]
-    );
 
     const deliveryResult = await client.query(
       `UPDATE deliveries
@@ -189,15 +218,24 @@ const deliverOrder = async (req, res) => {
       return res.status(404).json({ error: "Delivery record not found." });
     }
 
+    const reqData = await client.query(
+      `SELECT medicine_id, quantity_requested FROM stock_requests WHERE request_id = $1`,
+      [requestId]
+    );
+    const { medicine_id, quantity_requested } = reqData.rows[0];
+
     await client.query(
-      `UPDATE stock_requests
-       SET status = 'Completed', updated_at = NOW()
-       WHERE request_id = $1`,
+      `UPDATE medicines SET stock = stock + $1 WHERE medicine_id = $2`,
+      [quantity_requested, medicine_id]
+    );
+
+    await client.query(
+      `UPDATE stock_requests SET status = 'Completed', updated_at = NOW() WHERE request_id = $1`,
       [requestId]
     );
 
     await client.query('COMMIT');
-    res.json({ message: "Delivery completed successfully!" });
+    res.json({ message: "Delivery completed! Pharmacy stock updated." });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error("Error delivering order:", err);
@@ -216,7 +254,7 @@ const addToInventory = async (req, res) => {
 
     const supplierInventory = await client.query(
       `SELECT selling_price, expiry_date FROM supplier_inventory
-       WHERE supplier_id = $1 AND medicine_id = $2`,
+       WHERE supplier_id = (SELECT supplier_id FROM suppliers WHERE user_id = $1) AND medicine_id = $2`,
       [supplier_id, medicine_id]
     );
 
@@ -278,7 +316,7 @@ const getSupplierRequests = async (req, res) => {
        JOIN medicines m ON sr.medicine_id = m.medicine_id
        JOIN users u ON sr.pharmacist_id = u.user_id
        JOIN pharmacists p ON sr.pharmacist_id = p.user_id
-       WHERE sr.supplier_id = $1
+       WHERE sr.supplier_id = (SELECT user_id FROM suppliers WHERE supplier_id = $1)
        ORDER BY sr.request_date DESC`,
       [supplierId]
     );
@@ -343,7 +381,7 @@ const getPharmacistRequests = async (req, res) => {
               s.supplier_id
        FROM stock_requests sr
        JOIN medicines m ON sr.medicine_id = m.medicine_id
-       JOIN suppliers s ON sr.supplier_id = s.supplier_id
+       JOIN suppliers s ON sr.supplier_id = s.user_id
        LEFT JOIN deliveries d ON sr.request_id = d.request_id
        WHERE sr.pharmacist_id = $1
        ORDER BY

@@ -40,7 +40,7 @@ const getUserPrescriptions = async (req, res) => {
   const { userId } = req.params;
   try {
     const result = await pool.query(
-      `SELECT p.*, u.name as doctor_name 
+      `SELECT p.*, CONCAT(u.first_name, ' ', u.last_name) as doctor_name
        FROM prescriptions p
        LEFT JOIN users u ON p.doctor_id = u.user_id
        WHERE p.patient_id = $1
@@ -130,7 +130,7 @@ const getPatientPrescriptions = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, 
-              u.name as doctor_name,
+              CONCAT(u.first_name, ' ', u.last_name) as doctor_name,
               json_agg(
                 json_build_object(
                   'medicine_name', m.name,
@@ -144,7 +144,7 @@ const getPatientPrescriptions = async (req, res) => {
        LEFT JOIN prescribed_medicines pm ON p.prescription_id = pm.prescription_id
        LEFT JOIN medicines m ON pm.medicine_id = m.medicine_id
        WHERE p.patient_id = $1
-       GROUP BY p.prescription_id, u.name
+       GROUP BY p.prescription_id, u.first_name, u.last_name
        ORDER BY p.date_issued DESC`,
       [patientId]
     );
@@ -158,19 +158,36 @@ const getPatientPrescriptions = async (req, res) => {
 const verifyPrescription = async (req, res) => {
   const { prescriptionId } = req.params;
   const { doctor_id, status, notes } = req.body;
-  
+
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
-      `UPDATE prescriptions 
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `UPDATE prescriptions
        SET doctor_id = $1, status = $2, notes = COALESCE($3, notes)
-       WHERE prescription_id = $4 
+       WHERE prescription_id = $4
        RETURNING *`,
       [doctor_id, status, notes, prescriptionId]
     );
+
+    const orderId = result.rows[0]?.order_id;
+    if (orderId) {
+      if (status === 'Verified') {
+        await client.query(`UPDATE orders SET status = 'Verified' WHERE order_id = $1`, [orderId]);
+      } else if (status === 'Rejected') {
+        await client.query(`UPDATE orders SET status = 'Cancelled' WHERE order_id = $1`, [orderId]);
+      }
+    }
+
+    await client.query('COMMIT');
     res.json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error("Error verifying prescription:", err);
     res.status(500).json({ error: "Failed to verify prescription" });
+  } finally {
+    client.release();
   }
 };
 

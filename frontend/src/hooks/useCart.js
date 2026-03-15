@@ -21,7 +21,7 @@ export const useCart = () => {
       setCart(data);
     } catch (err) {
       console.error("Error loading cart:", err);
-      showNotification("Error loading cart items", "error");
+      setCart([]);
     } finally {
       setLoading(false);
     }
@@ -29,7 +29,7 @@ export const useCart = () => {
 
   useEffect(() => {
     loadCart();
-  }, [user]);
+  }, [user?.id]);
 
   const addToCart = async (medicineId, quantity = 1) => {
     if (!user) {

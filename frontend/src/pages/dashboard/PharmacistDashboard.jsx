@@ -9,6 +9,7 @@ import StatsCard from "../../components/dashboard/StatsCard";
 import RequestCard from "../../components/dashboard/RequestCard";
 import DeliveryCard from "../../components/dashboard/DeliveryCard";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import api from "../../services/api";
 import {
   Package,
   ShoppingCart,
@@ -20,7 +21,10 @@ import {
   BarChart3,
   AlertCircle,
   Send,
-  X
+  X,
+  ClipboardList,
+  CheckCircle,
+  Download
 } from "lucide-react";
 
 function PharmacistDashboard() {
@@ -34,6 +38,7 @@ function PharmacistDashboard() {
   const [medicines, setMedicines] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [stockRequests, setStockRequests] = useState([]);
+  const [patientOrders, setPatientOrders] = useState([]);
   const [pharmacistDetails, setPharmacistDetails] = useState(null);
   const [stats, setStats] = useState({
     total_medicines: 0,
@@ -44,6 +49,7 @@ function PharmacistDashboard() {
 
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [selectedMedicine, setSelectedMedicine] = useState(null);
+  const [stockErrorItems, setStockErrorItems] = useState([]);
   const [requestData, setRequestData] = useState({
     supplier_id: "",
     medicine_id: "",
@@ -99,6 +105,14 @@ function PharmacistDashboard() {
       } catch (err) {
         console.error("Error fetching stock requests:", err);
         setStockRequests([]);
+      }
+
+      try {
+        const ordersData = await api.get(`/api/pharmacist/${user.id}/orders`);
+        setPatientOrders(ordersData);
+      } catch (err) {
+        console.error("Error fetching patient orders:", err);
+        setPatientOrders([]);
       }
 
       try {
@@ -192,6 +206,102 @@ function PharmacistDashboard() {
     setLoading(false);
   };
 
+  const refreshPatientOrders = async () => {
+    try {
+      const ordersData = await api.get(`/api/pharmacist/${user.id}/orders`);
+      setPatientOrders(ordersData);
+    } catch (err) {
+      console.error("Error refreshing orders:", err);
+    }
+  };
+
+  const handleShipOrder = async (orderId) => {
+    try {
+      await api.patch(`/api/orders/${orderId}/ship`, {});
+      showNotification("Order shipped! Stock updated.", "success");
+      await refreshPatientOrders();
+      const medicinesData = await userService.getPharmacistMedicines();
+      setMedicines(medicinesData);
+    } catch (err) {
+      if (err.items) {
+        setStockErrorItems(err.items);
+      } else {
+        showNotification(err.message || "Failed to ship order", "error");
+      }
+    }
+  };
+
+  const handleRequestFromStockError = (item) => {
+    const medicine = medicines.find(m => m.name === item.name);
+    setStockErrorItems([]);
+    if (medicine) {
+      setSelectedMedicine(medicine);
+      setRequestData({
+        supplier_id: medicine.supplier_id || "",
+        medicine_id: medicine.medicine_id,
+        quantity_requested: String(item.required - item.available),
+        notes: `Needed to fulfil patient order — short by ${item.required - item.available} units`,
+        pharmacy_name: pharmacistDetails?.pharmacy_name || "My Pharmacy"
+      });
+    }
+    setActiveTab("requests");
+    setShowRequestForm(true);
+  };
+
+  const handleDeliverOrder = async (orderId) => {
+    try {
+      await api.patch(`/api/orders/${orderId}/status`, { status: 'Delivered' });
+      showNotification("Order marked as delivered!", "success");
+      await refreshPatientOrders();
+    } catch (err) {
+      showNotification(err.message || "Failed to update order", "error");
+    }
+  };
+
+  const downloadDeliveryPDF = () => {
+    const supplierRows = stockRequests
+      .filter(r => r.delivery_status === "Shipped" || r.delivery_status === "Delivered" || r.status === "Completed")
+      .map(r => `<tr style="border-bottom:1px solid #eee">
+        <td style="padding:8px">Stock #${r.request_id}</td>
+        <td style="padding:8px">${r.medicine_name || ''}</td>
+        <td style="padding:8px">${r.quantity_requested || ''}</td>
+        <td style="padding:8px">${r.supplier_name || ''}</td>
+        <td style="padding:8px">${r.delivery_status || r.status || ''}</td>
+        <td style="padding:8px">${r.shipped_date ? new Date(r.shipped_date).toLocaleDateString() : ''}</td>
+        <td style="padding:8px">${r.delivery_date ? new Date(r.delivery_date).toLocaleDateString() : ''}</td>
+      </tr>`).join('');
+
+    const patientRows = patientOrders
+      .filter(o => o.status === 'Shipped' || o.status === 'Delivered')
+      .map(o => `<tr style="border-bottom:1px solid #eee">
+        <td style="padding:8px">Order #${o.order_id}</td>
+        <td style="padding:8px">${(o.items||[]).map(i=>i.medicine_name).filter(Boolean).join(', ')}</td>
+        <td style="padding:8px">${(o.items||[]).reduce((s,i)=>s+(i.quantity||0),0)}</td>
+        <td style="padding:8px">${o.patient_name || ''}</td>
+        <td style="padding:8px">${o.status}</td>
+        <td style="padding:8px">—</td>
+        <td style="padding:8px">—</td>
+      </tr>`).join('');
+
+    const html = `<html><head><title>Delivery Log</title>
+      <style>body{font-family:Arial,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}
+      th{background:#0d9488;color:white;padding:10px;text-align:left}
+      h2{color:#0d9488}h3{color:#374151;margin-top:24px}</style></head><body>
+      <h2>Delivery Log — ${pharmacistDetails?.pharmacy_name || 'Pharmacy'}</h2>
+      <p>Generated: ${new Date().toLocaleString()}</p>
+      <h3>Supplier Deliveries</h3>
+      <table><thead><tr><th>#</th><th>Medicine</th><th>Qty</th><th>Supplier</th><th>Status</th><th>Shipped</th><th>Delivered</th></tr></thead>
+      <tbody>${supplierRows || '<tr><td colspan="7" style="padding:8px;color:#999">None</td></tr>'}</tbody></table>
+      <h3>Patient Order Deliveries</h3>
+      <table><thead><tr><th>#</th><th>Medicines</th><th>Qty</th><th>Patient</th><th>Status</th><th>Shipped</th><th>Delivered</th></tr></thead>
+      <tbody>${patientRows || '<tr><td colspan="7" style="padding:8px;color:#999">None</td></tr>'}</tbody></table>
+      <script>window.onload=()=>{window.print()}</script></body></html>`;
+
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+  };
+
   const getSupplierMedicines = (supplierId) => {
     if (!supplierId) return [];
     const supplierIdNum = parseInt(supplierId);
@@ -267,6 +377,21 @@ function PharmacistDashboard() {
           >
             <Truck size={20} />
             <span>Deliveries</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`w-full flex items-center gap-3 p-3 rounded-lg transition ${
+              activeTab === "orders" ? "bg-white text-teal-600" : "hover:bg-teal-500"
+            }`}
+          >
+            <ClipboardList size={20} />
+            <span>Patient Orders</span>
+            {patientOrders.filter(o => o.status === 'Verified').length > 0 && (
+              <span className="ml-auto bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                {patientOrders.filter(o => o.status === 'Verified').length}
+              </span>
+            )}
           </button>
 
           <button
@@ -473,49 +598,250 @@ function PharmacistDashboard() {
             </div>
           )}
 
-          {activeTab === "deliveries" && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6">Delivery Tracking</h2>
+          {activeTab === "deliveries" && (() => {
+            const supplierInTransit = stockRequests.filter(r => r.delivery_status === "Shipped");
+            const supplierReady = stockRequests.filter(r => r.status === "Completed");
+            const supplierDelivered = stockRequests.filter(r => r.delivery_status === "Delivered");
+            const patientShipped = patientOrders.filter(o => o.status === "Shipped");
+            const patientDelivered = patientOrders.filter(o => o.status === "Delivered");
+            const hasAny = supplierInTransit.length + supplierReady.length + supplierDelivered.length + patientShipped.length + patientDelivered.length > 0;
 
-              {stockRequests.filter(req => req.delivery_status === "Shipped" || req.status === "Completed").length === 0 ? (
+            return (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">Deliveries</h2>
+                  {hasAny && (
+                    <button
+                      onClick={downloadDeliveryPDF}
+                      className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+                    >
+                      <Download size={18} /> Download PDF
+                    </button>
+                  )}
+                </div>
+
+                {!hasAny ? (
+                  <div className="text-center py-12 bg-white rounded-lg shadow">
+                    <Truck size={64} className="mx-auto text-gray-400 mb-4" />
+                    <p className="text-gray-600">No deliveries yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    <div>
+                      <h3 className="text-xl font-semibold mb-4 text-teal-700 border-b pb-2">From Suppliers</h3>
+                      {supplierInTransit.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-sm font-medium text-blue-600 mb-2">In Transit ({supplierInTransit.length})</p>
+                          <div className="space-y-3">
+                            {supplierInTransit.map(r => <DeliveryCard key={r.request_id} delivery={r} />)}
+                          </div>
+                        </div>
+                      )}
+                      {supplierReady.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-sm font-medium text-green-600 mb-2">Ready to Add to Inventory ({supplierReady.length})</p>
+                          <div className="space-y-3">
+                            {supplierReady.map(r => (
+                              <RequestCard key={r.request_id} request={r} type="pharmacist" onAddToInventory={handleAddToInventory} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {supplierDelivered.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-sm font-medium text-gray-500 mb-2">Completed ({supplierDelivered.length})</p>
+                          <div className="space-y-3">
+                            {supplierDelivered.map(r => <DeliveryCard key={r.request_id} delivery={r} />)}
+                          </div>
+                        </div>
+                      )}
+                      {!supplierInTransit.length && !supplierReady.length && !supplierDelivered.length && (
+                        <p className="text-sm text-gray-400 py-4">No supplier deliveries</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-semibold mb-4 text-cyan-700 border-b pb-2">To Patients</h3>
+                      {patientShipped.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-sm font-medium text-blue-600 mb-2">Shipped ({patientShipped.length})</p>
+                          <div className="space-y-3">
+                            {patientShipped.map(o => (
+                              <div key={o.order_id} className="bg-white rounded-lg shadow p-4 flex justify-between items-center">
+                                <div>
+                                  <p className="font-medium">Order #{o.order_id} — {o.patient_name}</p>
+                                  <p className="text-sm text-gray-500">{o.delivery_address}</p>
+                                </div>
+                                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">Shipped</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {patientDelivered.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-sm font-medium text-gray-500 mb-2">Delivered ({patientDelivered.length})</p>
+                          <div className="space-y-3">
+                            {patientDelivered.map(o => (
+                              <div key={o.order_id} className="bg-white rounded-lg shadow p-4 flex justify-between items-center">
+                                <div>
+                                  <p className="font-medium">Order #{o.order_id} — {o.patient_name}</p>
+                                  <p className="text-sm text-gray-500">{o.delivery_address}</p>
+                                </div>
+                                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">Delivered</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {!patientShipped.length && !patientDelivered.length && (
+                        <p className="text-sm text-gray-400 py-4">No patient deliveries</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {activeTab === "orders" && (
+            <div>
+              <h2 className="text-2xl font-bold mb-6">Patient Orders</h2>
+
+              {patientOrders.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-lg shadow">
-                  <Truck size={64} className="mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600">No active deliveries</p>
+                  <ClipboardList size={64} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-600">No orders assigned to you yet</p>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {stockRequests.filter(req => req.delivery_status === "Shipped").length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4 text-blue-700">
-                        In Transit ({stockRequests.filter(req => req.delivery_status === "Shipped").length})
-                      </h3>
-                      {stockRequests
-                        .filter(req => req.delivery_status === "Shipped")
-                        .map((request) => (
-                          <DeliveryCard key={request.request_id} delivery={request} />
-                        ))}
-                    </div>
-                  )}
+                <div className="space-y-4">
+                  {patientOrders.map((order) => {
+                    const statusColor = {
+                      Pending: "bg-yellow-100 text-yellow-700",
+                      Processing: "bg-blue-100 text-blue-700",
+                      Verified: "bg-green-100 text-green-700",
+                      Shipped: "bg-purple-100 text-purple-700",
+                      Delivered: "bg-gray-100 text-gray-700",
+                    }[order.status] || "bg-gray-100 text-gray-600";
 
-                  {stockRequests.filter(req => req.status === "Completed").length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4 text-green-700">
-                        Ready to Add ({stockRequests.filter(req => req.status === "Completed").length})
-                      </h3>
-                      {stockRequests
-                        .filter(req => req.status === "Completed")
-                        .map((request) => (
-                          <RequestCard
-                            key={request.request_id}
-                            request={request}
-                            type="pharmacist"
-                            onAddToInventory={handleAddToInventory}
-                          />
-                        ))}
-                    </div>
-                  )}
+                    return (
+                      <div key={order.order_id} className="bg-white rounded-lg shadow p-6">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-bold text-lg">Order #{order.order_id}</h3>
+                            <p className="text-sm text-gray-600">Patient: {order.patient_name}</p>
+                            {order.patient_phone && (
+                              <p className="text-sm text-gray-600">Phone: {order.patient_phone}</p>
+                            )}
+                            <p className="text-sm text-gray-600">
+                              {new Date(order.order_date).toLocaleDateString()}
+                            </p>
+                            <p className="text-sm text-gray-600">Delivery: {order.delivery_address}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColor}`}>
+                              {order.status}
+                            </span>
+                            <p className="mt-2 font-bold text-lg">Rs. {order.total_price}</p>
+                          </div>
+                        </div>
+
+                        {order.prescription_status && (
+                          <p className="text-sm mb-3">
+                            Prescription:{" "}
+                            <span className={`font-medium ${order.prescription_status === 'Verified' ? 'text-green-600' : 'text-yellow-600'}`}>
+                              {order.prescription_status}
+                            </span>
+                          </p>
+                        )}
+
+                        <div className="border-t pt-3 mb-4">
+                          <p className="text-sm font-medium text-gray-600 mb-2">Items:</p>
+                          <div className="space-y-1">
+                            {(order.items || []).filter(Boolean).map((item, i) => (
+                              <div key={i} className="text-sm flex justify-between">
+                                <span>{item.medicine_name} × {item.quantity}</span>
+                                <span>Rs. {item.price}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                          {order.status === 'Verified' && (
+                            <button
+                              onClick={() => handleShipOrder(order.order_id)}
+                              className="flex-1 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
+                            >
+                              <Truck size={18} />
+                              Mark as Shipped
+                            </button>
+                          )}
+                          {order.status === 'Shipped' && (
+                            <button
+                              onClick={() => handleDeliverOrder(order.order_id)}
+                              className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                            >
+                              <CheckCircle size={18} />
+                              Mark as Delivered
+                            </button>
+                          )}
+                          {(order.status === 'Pending' || order.status === 'Processing') && (
+                            <p className="text-sm text-gray-500 italic">
+                              Waiting for prescription verification
+                            </p>
+                          )}
+                          {order.status === 'Delivered' && (
+                            <p className="text-sm text-green-600 font-medium flex items-center gap-1">
+                              <CheckCircle size={16} /> Delivered
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
+            </div>
+          )}
+
+          {stockErrorItems.length > 0 && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-semibold text-red-700">Insufficient Stock</h3>
+                  <button onClick={() => setStockErrorItems([])} className="text-gray-500 hover:text-gray-700">
+                    <X size={24} />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  You don't have enough stock to ship this order. Request the following from a supplier:
+                </p>
+                <div className="space-y-3">
+                  {stockErrorItems.map((item, i) => (
+                    <div key={i} className="flex justify-between items-center p-3 bg-red-50 rounded-lg border border-red-200">
+                      <div>
+                        <p className="font-medium text-gray-800">{item.name}</p>
+                        <p className="text-sm text-red-600">
+                          Have: {item.available} &nbsp;|&nbsp; Need: {item.required} &nbsp;|&nbsp; Short: {item.required - item.available}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleRequestFromStockError(item)}
+                        className="ml-3 px-3 py-1.5 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 whitespace-nowrap"
+                      >
+                        Request Stock
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setStockErrorItems([])}
+                  className="mt-5 w-full py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           )}
 

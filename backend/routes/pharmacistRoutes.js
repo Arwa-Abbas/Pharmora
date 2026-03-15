@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
+const { authenticateUser } = require('../middleware/auth');
 
 router.get("/api/pharmacists", async (req, res) => {
   try {
@@ -46,7 +47,7 @@ router.get("/api/pharmacists", async (req, res) => {
   }
 });
 
-router.get("/api/pharmacist/user/:userId", async (req, res) => {
+router.get("/api/pharmacist/user/:userId", authenticateUser, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -69,7 +70,7 @@ router.get("/api/pharmacist/user/:userId", async (req, res) => {
   }
 });
 
-router.get("/api/pharmacist/:pharmacistId/stats", async (req, res) => {
+router.get("/api/pharmacist/:pharmacistId/stats", authenticateUser, async (req, res) => {
   try {
     const { pharmacistId } = req.params;
 
@@ -105,7 +106,7 @@ router.get("/api/pharmacist/:pharmacistId/stats", async (req, res) => {
   }
 });
 
-router.get("/api/pharmacist/medicines", async (req, res) => {
+router.get("/api/pharmacist/medicines", authenticateUser, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
@@ -120,12 +121,41 @@ router.get("/api/pharmacist/medicines", async (req, res) => {
         m.image_url,
         s.company_name as supplier_name
        FROM medicines m
-       JOIN suppliers s ON m.supplier_id = s.supplier_id
+       JOIN suppliers s ON m.supplier_id = s.user_id
        ORDER BY m.name`
     );
     res.json(result.rows);
   } catch (err) {
     console.error("Error fetching medicines:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/api/pharmacist/:pharmacistId/delivered-requests", authenticateUser, async (req, res) => {
+  try {
+    const { pharmacistId } = req.params;
+    const result = await pool.query(
+      `SELECT sr.*,
+              d.delivery_status,
+              d.delivery_id,
+              d.shipped_date,
+              d.delivery_date,
+              d.tracking_info,
+              m.name as medicine_name,
+              m.category,
+              s.company_name as supplier_name,
+              s.supplier_id
+       FROM stock_requests sr
+       JOIN medicines m ON sr.medicine_id = m.medicine_id
+       JOIN suppliers s ON sr.supplier_id = s.supplier_id
+       JOIN deliveries d ON sr.request_id = d.request_id
+       WHERE sr.pharmacist_id = $1 AND d.delivery_status = 'Delivered'
+       ORDER BY d.delivery_date DESC`,
+      [pharmacistId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching delivered requests:", err);
     res.status(500).json({ error: err.message });
   }
 });

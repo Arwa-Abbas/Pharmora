@@ -36,14 +36,17 @@ function PatientDashboard() {
 
   const [cart, setCart] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
+  const [doctorPrescriptions, setDoctorPrescriptions] = useState([]);
   const [orders, setOrders] = useState([]);
   const [ordersWithoutPrescriptions, setOrdersWithoutPrescriptions] = useState([]);
   const [doctors, setDoctors] = useState([]);
+  const [pharmacists, setPharmacists] = useState([]);
   const [payments, setPayments] = useState([]);
 
   const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [prescriptionNotes, setPrescriptionNotes] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [selectedPharmacistId, setSelectedPharmacistId] = useState("");
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -63,6 +66,13 @@ function PatientDashboard() {
     cardHolder: "",
     paymentMethod: "credit_card"
   });
+
+  const [showLinkPrescriptionModal, setShowLinkPrescriptionModal] = useState(false);
+  const [selectedOrderForPrescription, setSelectedOrderForPrescription] = useState(null);
+  const [linkPrescriptionFile, setLinkPrescriptionFile] = useState(null);
+  const [linkPrescriptionNotes, setLinkPrescriptionNotes] = useState("");
+  const [linkSelectedDoctorId, setLinkSelectedDoctorId] = useState("");
+  const [linkPrescriptionError, setLinkPrescriptionError] = useState("");
 
   useEffect(() => {
     if (user === undefined || user === null) {
@@ -99,6 +109,13 @@ function PatientDashboard() {
       }
 
       try {
+        const docPresData = await prescriptionService.getDoctorPrescriptions(user.id);
+        setDoctorPrescriptions(docPresData.filter(p => p.diagnosis));
+      } catch (err) {
+        setDoctorPrescriptions([]);
+      }
+
+      try {
         const ordersData = await orderService.getUserOrders(user.id);
         setOrders(ordersData);
       } catch (err) {
@@ -114,6 +131,13 @@ function PatientDashboard() {
         setDoctors(formattedDoctors);
       } catch (err) {
         setDoctors([]);
+      }
+
+      try {
+        const pharmacistsData = await userService.getAllPharmacists();
+        setPharmacists(pharmacistsData);
+      } catch (err) {
+        setPharmacists([]);
       }
 
       try {
@@ -326,6 +350,11 @@ function PatientDashboard() {
       return;
     }
 
+    if (!selectedPharmacistId) {
+      showNotification("Please select a pharmacist", "warning");
+      return;
+    }
+
     if (!deliveryAddress.trim()) {
       showNotification("Please enter a delivery address", "warning");
       return;
@@ -342,10 +371,12 @@ function PatientDashboard() {
         })),
         total_price: calculateTotal() + 200,
         delivery_address: deliveryAddress,
+        pharmacist_id: parseInt(selectedPharmacistId),
       });
 
       showNotification("Order placed successfully!", "success");
       setDeliveryAddress("");
+      setSelectedPharmacistId("");
       setCart([]);
       setActiveTab("orders");
 
@@ -370,7 +401,11 @@ function PatientDashboard() {
         card_last_four: paymentDetails.cardNumber.slice(-4)
       });
 
-      showNotification("Payment successful!", "success");
+      await api.patch(`/api/orders/${selectedOrderForPayment.order_id}/status`, {
+        status: 'Processing'
+      });
+
+      showNotification("Payment successful! Order is now Processing.", "success");
       setShowPaymentModal(false);
       setPaymentDetails({
         cardNumber: "",
@@ -381,8 +416,12 @@ function PatientDashboard() {
       });
       setSelectedOrderForPayment(null);
 
-      const paymentsData = await api.get(`/api/payments/${user.id}`);
+      const [paymentsData, ordersData] = await Promise.all([
+        api.get(`/api/payments/${user.id}`),
+        orderService.getUserOrders(user.id)
+      ]);
       setPayments(paymentsData);
+      setOrders(ordersData);
     } catch (err) {
       showNotification(err.message || "Payment failed", "error");
     }
@@ -390,12 +429,62 @@ function PatientDashboard() {
   };
 
   const initiatePayment = (order) => {
-    if (!order.prescription_id) {
-      showNotification("Please link a prescription to this order before making payment", "warning");
-      return;
-    }
     setSelectedOrderForPayment(order);
     setShowPaymentModal(true);
+  };
+
+  const initiateLinkPrescription = (order) => {
+    setSelectedOrderForPrescription(order);
+    setLinkPrescriptionFile(null);
+    setLinkPrescriptionNotes("");
+    setLinkSelectedDoctorId("");
+    setLinkPrescriptionError("");
+    setShowLinkPrescriptionModal(true);
+  };
+
+  const handleLinkPrescriptionFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setLinkPrescriptionFile(reader.result);
+      reader.readAsDataURL(file);
+    }
+    setLinkPrescriptionError("");
+  };
+
+  const handleLinkPrescriptionSubmit = async () => {
+    if (!linkPrescriptionFile) {
+      setLinkPrescriptionError("Please select a prescription file");
+      return;
+    }
+    if (!linkSelectedDoctorId) {
+      setLinkPrescriptionError("Please select a doctor");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await prescriptionService.uploadPrescription({
+        patient_id: user.id,
+        doctor_id: linkSelectedDoctorId,
+        prescription_image: linkPrescriptionFile,
+        notes: linkPrescriptionNotes,
+        order_id: selectedOrderForPrescription.order_id,
+      });
+
+      showNotification("Prescription linked successfully!", "success");
+      setShowLinkPrescriptionModal(false);
+
+      const [presData, ordersData] = await Promise.all([
+        prescriptionService.getUserPrescriptions(user.id),
+        orderService.getUserOrders(user.id)
+      ]);
+      setPrescriptions(presData);
+      setOrders(ordersData);
+    } catch (err) {
+      setLinkPrescriptionError(err.message || "Failed to link prescription");
+    }
+    setLoading(false);
   };
 
   if (loading) {
@@ -579,7 +668,25 @@ function PatientDashboard() {
 
                     <div className="mb-4">
                       <label className="block text-sm font-medium mb-2">
-                        Delivery Address
+                        Select Pharmacist *
+                      </label>
+                      <select
+                        value={selectedPharmacistId}
+                        onChange={(e) => setSelectedPharmacistId(e.target.value)}
+                        className="w-full p-3 border rounded-lg"
+                      >
+                        <option value="">Choose a pharmacist</option>
+                        {pharmacists.map(ph => (
+                          <option key={ph.user_id} value={ph.user_id}>
+                            {ph.pharmacy_name || `${ph.first_name} ${ph.last_name}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium mb-2">
+                        Delivery Address *
                       </label>
                       <textarea
                         value={deliveryAddress}
@@ -592,7 +699,8 @@ function PatientDashboard() {
 
                     <button
                       onClick={handleCheckout}
-                      className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition"
+                      disabled={!selectedPharmacistId || !deliveryAddress.trim()}
+                      className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Proceed to Checkout
                     </button>
@@ -605,104 +713,22 @@ function PatientDashboard() {
           {activeTab === "prescriptions" && (
             <div>
               <h2 className="text-2xl font-bold mb-6">My Prescriptions</h2>
+              <p className="text-sm text-gray-500 mb-6">
+                These are prescriptions issued by your doctors. Download them to attach to your orders.
+              </p>
 
-              <div className="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 className="text-xl font-semibold mb-4">Upload New Prescription</h3>
-
-                {uploadError && (
-                  <div className="mb-4 p-3 bg-red-100 text-red-700 rounded flex items-center gap-2">
-                    <AlertCircle size={20} />
-                    <span>{uploadError}</span>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Prescription Image/PDF *
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      onChange={handleFileChange}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Select Doctor *
-                    </label>
-                    <select
-                      value={selectedDoctorId}
-                      onChange={(e) => setSelectedDoctorId(e.target.value)}
-                      className="w-full p-3 border rounded-lg"
-                    >
-                      <option value="">Choose a doctor</option>
-                      {doctors.map(doctor => (
-                        <option key={doctor.user_id} value={doctor.user_id}>
-                          Dr. {doctor.name} {doctor.specialty ? `- ${doctor.specialty}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Link to Order *
-                    </label>
-                    <select
-                      value={selectedOrderId}
-                      onChange={(e) => setSelectedOrderId(e.target.value)}
-                      className="w-full p-3 border rounded-lg"
-                    >
-                      <option value="">Select an order</option>
-                      {ordersWithoutPrescriptions.map(order => (
-                        <option key={order.order_id} value={order.order_id}>
-                          Order #{order.order_id} - Rs. {order.total_price}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Additional Notes
-                    </label>
-                    <textarea
-                      value={prescriptionNotes}
-                      onChange={(e) => setPrescriptionNotes(e.target.value)}
-                      placeholder="Any special instructions"
-                      className="w-full p-3 border rounded-lg"
-                      rows="3"
-                    />
-                  </div>
-
-                  <button
-                    onClick={uploadPrescription}
-                    disabled={!prescriptionFile || !selectedDoctorId || !selectedOrderId}
-                    className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:bg-gray-400 flex items-center gap-2"
-                  >
-                    <Upload size={20} />
-                    Upload Prescription
-                  </button>
-                </div>
-              </div>
-
-              {prescriptions.length === 0 ? (
+              {doctorPrescriptions.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-lg shadow">
                   <FileText size={64} className="mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600">No prescriptions yet</p>
+                  <p className="text-gray-600">No doctor prescriptions yet</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Prescriptions issued by your doctors will appear here
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {prescriptions.map((pres) => (
-                    <PrescriptionCard
-                      key={pres.prescription_id}
-                      prescription={pres}
-                      onVerify={() => {}}
-                      onReject={() => {}}
-                    />
+                  {doctorPrescriptions.map((pres) => (
+                    <DoctorPrescriptionCard key={pres.prescription_id} prescription={pres} />
                   ))}
                 </div>
               )}
@@ -727,7 +753,7 @@ function PatientDashboard() {
                         key={order.order_id}
                         order={{ ...order, payment: orderPayment }}
                         onPay={initiatePayment}
-                        showPaymentButton={!orderPayment && order.prescription_id}
+                        onLinkPrescription={initiateLinkPrescription}
                       />
                     );
                   })}
@@ -774,28 +800,92 @@ function PatientDashboard() {
           )}
 
           {activeTab === "profile" && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6">My Profile</h2>
-              <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Name</label>
-                    <p className="text-lg font-semibold">{user?.name}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Email</label>
-                    <p className="text-lg font-semibold">{user?.email}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Role</label>
-                    <p className="text-lg font-semibold">{user?.role}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ProfileTab user={user} onUpdated={(updated) => {
+              const stored = JSON.parse(localStorage.getItem('user') || '{}');
+              const merged = { ...stored, ...updated };
+              localStorage.setItem('user', JSON.stringify(merged));
+              showNotification("Profile updated!", "success");
+            }} />
           )}
         </div>
       </div>
+
+      {showLinkPrescriptionModal && selectedOrderForPrescription && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold">Link Prescription</h3>
+                <button
+                  onClick={() => setShowLinkPrescriptionModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4">
+                Order #{selectedOrderForPrescription.order_id} — Rs. {selectedOrderForPrescription.total_price}
+              </p>
+
+              {linkPrescriptionError && (
+                <div className="mb-4 p-3 bg-red-100 text-red-700 rounded flex items-center gap-2">
+                  <AlertCircle size={18} />
+                  <span className="text-sm">{linkPrescriptionError}</span>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Prescription Image/PDF *</label>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={handleLinkPrescriptionFileChange}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Select Doctor *</label>
+                  <select
+                    value={linkSelectedDoctorId}
+                    onChange={(e) => setLinkSelectedDoctorId(e.target.value)}
+                    className="w-full p-3 border rounded-lg"
+                  >
+                    <option value="">Choose a doctor</option>
+                    {doctors.map(doctor => (
+                      <option key={doctor.user_id} value={doctor.user_id}>
+                        Dr. {doctor.name} {doctor.specialty ? `- ${doctor.specialty}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Additional Notes</label>
+                  <textarea
+                    value={linkPrescriptionNotes}
+                    onChange={(e) => setLinkPrescriptionNotes(e.target.value)}
+                    placeholder="Any special instructions"
+                    className="w-full p-3 border rounded-lg"
+                    rows="2"
+                  />
+                </div>
+
+                <button
+                  onClick={handleLinkPrescriptionSubmit}
+                  disabled={!linkPrescriptionFile || !linkSelectedDoctorId}
+                  className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Upload size={20} />
+                  Link Prescription
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPaymentModal && selectedOrderForPayment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -904,6 +994,265 @@ function PatientDashboard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DoctorPrescriptionCard({ prescription }) {
+  const downloadAsImage = (format) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 600;
+    const ctx = canvas.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Header bar
+    ctx.fillStyle = '#0e7490';
+    ctx.fillRect(0, 0, canvas.width, 80);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px Arial';
+    ctx.fillText('Pharmora — Medical Prescription', 30, 50);
+
+    // Prescription ID + date
+    ctx.fillStyle = '#374151';
+    ctx.font = '14px Arial';
+    const date = new Date(prescription.date_issued).toLocaleDateString('en-PK', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+    ctx.fillText(`Prescription #${prescription.prescription_id}   |   Date: ${date}`, 30, 110);
+
+    // Doctor
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(`Doctor: Dr. ${prescription.doctor_name || 'N/A'}`, 30, 145);
+
+    // Diagnosis
+    ctx.fillStyle = '#111827';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText('Diagnosis:', 30, 185);
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#374151';
+    const diagWords = (prescription.diagnosis || '').split(' ');
+    let line = '', y = 210;
+    for (const word of diagWords) {
+      const test = line + word + ' ';
+      if (ctx.measureText(test).width > 740 && line) {
+        ctx.fillText(line.trim(), 30, y); y += 22; line = word + ' ';
+      } else { line = test; }
+    }
+    if (line.trim()) { ctx.fillText(line.trim(), 30, y); y += 22; }
+
+    // Medicines
+    y += 10;
+    ctx.fillStyle = '#111827';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText('Prescribed Medicines:', 30, y); y += 28;
+
+    const meds = prescription.medicines || [];
+    if (meds.length === 0) {
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText('No medicines listed', 30, y); y += 22;
+    } else {
+      ctx.font = '14px Arial';
+      meds.forEach((med, i) => {
+        ctx.fillStyle = i % 2 === 0 ? '#f9fafb' : '#ffffff';
+        ctx.fillRect(28, y - 16, 744, 22);
+        ctx.fillStyle = '#111827';
+        ctx.fillText(
+          `${i + 1}. ${med.medicine_name || ''}   |   Dosage: ${med.dosage || '-'}   |   Freq: ${med.frequency || '-'}   |   Duration: ${med.duration || '-'}`,
+          34, y
+        );
+        y += 26;
+      });
+    }
+
+    // Notes
+    if (prescription.notes) {
+      y += 10;
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 16px Arial';
+      ctx.fillText('Notes:', 30, y); y += 22;
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#374151';
+      ctx.fillText(prescription.notes, 30, y); y += 22;
+    }
+
+    // Footer
+    ctx.fillStyle = '#d1d5db';
+    ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px Arial';
+    ctx.fillText('This prescription was issued digitally via Pharmora. Present to your pharmacist.', 20, canvas.height - 14);
+
+    const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const link = document.createElement('a');
+    link.download = `prescription-${prescription.prescription_id}.${format}`;
+    link.href = canvas.toDataURL(mime, 0.95);
+    link.click();
+  };
+
+  const meds = prescription.medicines || [];
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6 border border-gray-100">
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <h3 className="font-bold text-lg text-gray-800">Prescription #{prescription.prescription_id}</h3>
+          <p className="text-sm text-gray-500">
+            {new Date(prescription.date_issued).toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+          {prescription.status}
+        </span>
+      </div>
+
+      <p className="text-sm font-medium text-gray-600 mb-1">Dr. {prescription.doctor_name || 'N/A'}</p>
+
+      {prescription.diagnosis && (
+        <div className="mb-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Diagnosis</p>
+          <p className="text-sm text-gray-800">{prescription.diagnosis}</p>
+        </div>
+      )}
+
+      {meds.length > 0 && (
+        <div className="mb-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Medicines</p>
+          <div className="space-y-1">
+            {meds.map((med, i) => (
+              <div key={i} className="text-sm bg-gray-50 rounded px-3 py-1.5 flex flex-wrap gap-2">
+                <span className="font-medium text-gray-800">{med.medicine_name}</span>
+                {med.dosage && <span className="text-gray-500">· {med.dosage}</span>}
+                {med.frequency && <span className="text-gray-500">· {med.frequency}</span>}
+                {med.duration && <span className="text-gray-500">· {med.duration}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {prescription.notes && (
+        <p className="text-xs text-gray-500 mb-3 italic">Note: {prescription.notes}</p>
+      )}
+
+      <div className="flex gap-2 mt-4">
+        <button
+          onClick={() => downloadAsImage('png')}
+          className="flex-1 py-2 bg-cyan-600 text-white rounded-lg text-sm font-medium hover:bg-cyan-700 transition"
+        >
+          Download PNG
+        </button>
+        <button
+          onClick={() => downloadAsImage('jpeg')}
+          className="flex-1 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition"
+        >
+          Download JPEG
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProfileTab({ user, onUpdated }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    first_name: user?.firstName || '',
+    last_name: user?.lastName || '',
+    phone: user?.phone || '',
+    address: user?.address || '',
+    city: user?.city || '',
+    country: user?.country || ''
+  });
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/api/patients/${user.id}`, form);
+      onUpdated({
+        firstName: form.first_name,
+        lastName: form.last_name,
+        name: `${form.first_name} ${form.last_name}`.trim(),
+        phone: form.phone,
+        address: form.address,
+        city: form.city,
+        country: form.country
+      });
+      setEditing(false);
+    } catch (err) {
+      console.error("Profile update failed:", err);
+    }
+    setSaving(false);
+  };
+
+  const field = (label, key, type = "text") => (
+    <div key={key}>
+      <label className="text-sm font-medium text-gray-600">{label}</label>
+      {editing ? (
+        <input
+          type={type}
+          value={form[key]}
+          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+          className="mt-1 w-full p-2 border rounded-lg"
+        />
+      ) : (
+        <p className="text-lg font-semibold">{form[key] || <span className="text-gray-400">—</span>}</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-6">My Profile</h2>
+      <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-600">Email</label>
+            <p className="text-lg font-semibold">{user?.email}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">Role</label>
+            <p className="text-lg font-semibold">{user?.role}</p>
+          </div>
+          {field("First Name", "first_name")}
+          {field("Last Name", "last_name")}
+          {field("Phone", "phone")}
+          {field("Address", "address")}
+          {field("City", "city")}
+          {field("Country", "country")}
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          {editing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:bg-gray-400"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
+            >
+              Edit Profile
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

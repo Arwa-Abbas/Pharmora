@@ -1,7 +1,8 @@
 // routes/patientRoutes.js
 const express = require('express');
 const router = express.Router();
-const { 
+const { authenticateUser } = require('../middleware/auth');
+const {
   getAllPatients,
   getPatientById,
   updatePatientProfile,
@@ -9,10 +10,10 @@ const {
   getPatientOrders
 } = require('../controllers/patientController');
 
-router.get("/api/patients", getAllPatients);
-router.get("/api/patients/:patientId", getPatientById);
-router.put("/api/patients/:patientId", updatePatientProfile);
-router.get("/api/patients/:patientId/prescriptions", getPatientPrescriptions);
-router.get("/api/patients/:patientId/orders", getPatientOrders);
+router.get("/api/patients", authenticateUser, getAllPatients);
+router.get("/api/patients/:patientId", authenticateUser, getPatientById);
+router.put("/api/patients/:patientId", authenticateUser, updatePatientProfile);
+router.get("/api/patients/:patientId/prescriptions", authenticateUser, getPatientPrescriptions);
+router.get("/api/patients/:patientId/orders", authenticateUser, getPatientOrders);
 
 module.exports = router;

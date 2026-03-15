@@ -12,6 +12,7 @@ import RequestCard from "../../components/dashboard/RequestCard";
 import InventoryCard from "../../components/dashboard/InventoryCard";
 import DeliveryCard from "../../components/dashboard/DeliveryCard";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import ReasonModal from "../../components/common/ReasonModal";
 import {
   Package,
   ShoppingCart,
@@ -25,7 +26,9 @@ import {
   TrendingUp,
   DollarSign,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Download,
+  FileText
 } from "lucide-react";
 
 function SupplierDashboard() {
@@ -65,6 +68,8 @@ function SupplierDashboard() {
     expiry_date: ""
   });
   const [showAddMedicine, setShowAddMedicine] = useState(false);
+  const [stockErrorItem, setStockErrorItem] = useState(null);
+  const [rejectingRequestId, setRejectingRequestId] = useState(null);
 
   const [editingItem, setEditingItem] = useState(null);
   const [processingRequest, setProcessingRequest] = useState(null);
@@ -187,25 +192,32 @@ const loadData = async () => {
     setProcessingRequest(requestId);
     try {
       await supplierService.acceptRequest(requestId);
-      showNotification("Request accepted successfully!", "success");
-
+      showNotification("Request accepted! Stock reserved.", "success");
       const requestsData = await supplierService.getStockRequests(supplierDetails.supplier_id);
       setStockRequests(requestsData);
+      const inventoryData = await userService.getSupplierInventory(supplierDetails.supplier_id);
+      setSupplierInventory(inventoryData);
     } catch (err) {
-      showNotification(err.message || "Failed to accept request", "error");
+      if (err.item) {
+        setStockErrorItem(err.item);
+      } else {
+        showNotification(err.message || "Failed to accept request", "error");
+      }
     } finally {
       setProcessingRequest(null);
     }
   };
 
-  const handleRejectRequest = async (requestId) => {
-    if (!window.confirm("Are you sure you want to reject this request?")) {
-      return;
-    }
-    try {
-      await supplierService.rejectRequest(requestId);
-      showNotification("Request rejected!", "success");
+  const handleRejectRequest = (requestId) => {
+    setRejectingRequestId(requestId);
+  };
 
+  const confirmRejectRequest = async (reason) => {
+    const requestId = rejectingRequestId;
+    setRejectingRequestId(null);
+    try {
+      await supplierService.rejectRequest(requestId, reason);
+      showNotification("Request rejected.", "success");
       const requestsData = await supplierService.getStockRequests(supplierDetails.supplier_id);
       setStockRequests(requestsData);
     } catch (err) {
@@ -342,6 +354,36 @@ const loadData = async () => {
     } else {
       return "Supplier";
     }
+  };
+
+  const downloadDeliveryPDF = (deliveries, title) => {
+    const rows = deliveries.map(r => `
+      <tr style="border-bottom:1px solid #eee">
+        <td style="padding:8px">#${r.request_id}</td>
+        <td style="padding:8px">${r.medicine_name || ''}</td>
+        <td style="padding:8px">${r.quantity_requested || ''}</td>
+        <td style="padding:8px">${r.pharmacy_name || r.pharmacist_name || ''}</td>
+        <td style="padding:8px">${r.delivery_status || r.status || ''}</td>
+        <td style="padding:8px">${r.shipped_date ? new Date(r.shipped_date).toLocaleDateString() : ''}</td>
+        <td style="padding:8px">${r.delivery_date ? new Date(r.delivery_date).toLocaleDateString() : ''}</td>
+      </tr>`).join('');
+
+    const html = `<html><head><title>${title}</title>
+      <style>body{font-family:Arial,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}
+      th{background:#0d9488;color:white;padding:10px;text-align:left}td{padding:8px}
+      h2{color:#0d9488}</style></head><body>
+      <h2>${title}</h2>
+      <p>Generated: ${new Date().toLocaleString()}</p>
+      <table><thead><tr>
+        <th>Request #</th><th>Medicine</th><th>Qty</th><th>Pharmacy</th>
+        <th>Status</th><th>Shipped</th><th>Delivered</th>
+      </tr></thead><tbody>${rows}</tbody></table>
+      <script>window.onload=()=>{window.print()}</script>
+      </body></html>`;
+
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
   };
 
   if (loading) {
@@ -545,16 +587,38 @@ const loadData = async () => {
 
           {activeTab === "requests" && (
             <div>
-              <h2 className="text-2xl font-bold mb-6">Stock Requests</h2>
+              <h2 className="text-2xl font-bold mb-6">Pending Stock Requests</h2>
 
-              {stockRequests.length === 0 ? (
+              {stockErrorItem && (
+                <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-5">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-red-700 mb-1">Insufficient Stock</h3>
+                      <p className="text-sm text-gray-700">
+                        <strong>{stockErrorItem.name}</strong> — have {stockErrorItem.available}, need {stockErrorItem.required} (short by {stockErrorItem.required - stockErrorItem.available})
+                      </p>
+                    </div>
+                    <button onClick={() => setStockErrorItem(null)} className="text-gray-400 hover:text-gray-600">
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => { setStockErrorItem(null); setActiveTab("inventory"); }}
+                    className="mt-3 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700"
+                  >
+                    Go to Inventory → Add Stock
+                  </button>
+                </div>
+              )}
+
+              {stockRequests.filter(r => r.status === 'Pending').length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-lg shadow">
                   <ShoppingCart size={64} className="mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600">No stock requests</p>
+                  <p className="text-gray-600">No pending requests</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {stockRequests.map((request) => (
+                  {stockRequests.filter(r => r.status === 'Pending').map((request) => (
                     <RequestCard
                       key={request.request_id}
                       request={request}
@@ -720,58 +784,67 @@ const loadData = async () => {
             </div>
           )}
 
-          {activeTab === "deliveries" && (
-            <div>
-              <h2 className="text-2xl font-bold mb-6">Delivery History</h2>
-
-              {stockRequests.filter(req =>
-                req.delivery_status === "Shipped" ||
-                req.delivery_status === "Delivered" ||
-                req.status === "Completed"
-              ).length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-lg shadow">
-                  <Truck size={64} className="mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600">No delivery history</p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {stockRequests.filter(req => req.delivery_status === "Shipped").length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4 text-blue-700">
-                        In Transit ({stockRequests.filter(req => req.delivery_status === "Shipped").length})
-                      </h3>
-                      {stockRequests
-                        .filter(req => req.delivery_status === "Shipped")
-                        .map((request) => (
-                          <DeliveryCard
-                            key={request.request_id}
-                            delivery={request}
-                            onDeliver={handleDeliverOrder}
-                          />
-                        ))}
-                    </div>
-                  )}
-
-                  {stockRequests.filter(req =>
-                    req.delivery_status === "Delivered" || req.status === "Completed"
-                  ).length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4 text-green-700">
-                        Delivery History ({stockRequests.filter(req =>
-                          req.delivery_status === "Delivered" || req.status === "Completed"
-                        ).length})
-                      </h3>
-                      {stockRequests
-                        .filter(req => req.delivery_status === "Delivered" || req.status === "Completed")
-                        .map((request) => (
-                          <DeliveryCard key={request.request_id} delivery={request} />
-                        ))}
-                    </div>
+          {activeTab === "deliveries" && (() => {
+            const inTransit = stockRequests.filter(r => r.delivery_status === "Shipped");
+            const accepted = stockRequests.filter(r => r.status === "Accepted" && r.delivery_status === "NotShipped");
+            const completed = stockRequests.filter(r => r.delivery_status === "Delivered" || r.status === "Completed");
+            const allDeliveries = [...inTransit, ...accepted, ...completed];
+            return (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">Deliveries to Pharmacies</h2>
+                  {allDeliveries.length > 0 && (
+                    <button
+                      onClick={() => downloadDeliveryPDF(allDeliveries, `Delivery Log — ${getWelcomeName()}`)}
+                      className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+                    >
+                      <Download size={18} /> Download PDF
+                    </button>
                   )}
                 </div>
-              )}
-            </div>
-          )}
+
+                {allDeliveries.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-lg shadow">
+                    <Truck size={64} className="mx-auto text-gray-400 mb-4" />
+                    <p className="text-gray-600">No deliveries yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {accepted.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3 text-yellow-700">Accepted — Awaiting Shipment ({accepted.length})</h3>
+                        <div className="space-y-3">
+                          {accepted.map(r => (
+                            <DeliveryCard key={r.request_id} delivery={r} onDeliver={null} onShip={handleShipOrder} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {inTransit.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3 text-blue-700">In Transit ({inTransit.length})</h3>
+                        <div className="space-y-3">
+                          {inTransit.map(r => (
+                            <DeliveryCard key={r.request_id} delivery={r} onDeliver={handleDeliverOrder} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {completed.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3 text-green-700">Completed ({completed.length})</h3>
+                        <div className="space-y-3">
+                          {completed.map(r => (
+                            <DeliveryCard key={r.request_id} delivery={r} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {isEditingDetails && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

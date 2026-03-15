@@ -1,12 +1,13 @@
 // routes/paymentRoutes.js
 const express = require('express');
 const router = express.Router();
-const { 
+const { authenticateUser } = require('../middleware/auth');
+const {
   getUserPayments,
-  createPayment 
+  createPayment
 } = require('../controllers/paymentController');
 
-router.get("/api/payments/:userId", getUserPayments);
-router.post("/api/payments", createPayment);
+router.get("/api/payments/:userId", authenticateUser, getUserPayments);
+router.post("/api/payments", authenticateUser, createPayment);
 
 module.exports = router;

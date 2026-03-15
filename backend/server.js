@@ -2,6 +2,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const dns = require('dns');
 const path = require('path');
 
@@ -9,17 +11,41 @@ dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(helmet());
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many login attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.use(generalLimiter);
+app.use('/api/login', authLimiter);
+app.use('/api/signup', authLimiter);
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173"
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+      ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
 }));
@@ -37,11 +63,9 @@ app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`)
 
 app.use((err, req, res, next) => {
   console.error("SERVER ERROR:", err);
-  console.error("Stack:", err.stack);
   res.status(500).json({
     error: "Internal server error",
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
   });
 });
 

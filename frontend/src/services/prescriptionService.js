@@ -33,6 +33,10 @@ class PrescriptionService {
   async createDoctorPrescription(data) {
     return api.post('/api/doctor/prescriptions', data);
   }
+
+  async getDoctorPrescriptions(patientId) {
+    return api.get(`/api/patient/${patientId}/prescriptions`);
+  }
 }
 
 export default new PrescriptionService();

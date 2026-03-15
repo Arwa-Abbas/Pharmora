@@ -1,11 +1,12 @@
 // components/dashboard/OrderCard.jsx
 import React from 'react';
-import { Package, CreditCard, MapPin, Calendar, AlertCircle, CheckCircle, Link as LinkIcon } from 'lucide-react';
+import { Package, CreditCard, MapPin, Calendar, AlertCircle, CheckCircle, Link as LinkIcon, FileText } from 'lucide-react';
 import { formatDate, formatCurrency, getStatusColor } from '../../utils/formatters';
 
-function OrderCard({ order, onPay, showPaymentButton = false }) {
+function OrderCard({ order, onPay, onLinkPrescription }) {
   const hasPrescription = order.prescription_id;
   const hasPayment = order.payment;
+  const isPending = order.status === 'Pending';
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -92,14 +93,32 @@ function OrderCard({ order, onPay, showPaymentButton = false }) {
         </div>
       </div>
 
-      {showPaymentButton && !hasPayment && hasPrescription && (
-        <button
-          onClick={() => onPay(order)}
-          className="w-full mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
-        >
-          <CreditCard size={20} />
-          Proceed to Payment
-        </button>
+      {isPending && !hasPayment && (
+        <div className="mt-4 flex gap-3">
+          {!hasPrescription && (
+            <button
+              onClick={() => onLinkPrescription(order)}
+              className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 flex items-center justify-center gap-2"
+            >
+              <FileText size={18} />
+              Link Prescription
+            </button>
+          )}
+
+          <button
+            onClick={() => hasPrescription ? onPay(order) : null}
+            disabled={!hasPrescription}
+            className={`flex-1 px-4 py-2 rounded-lg flex items-center justify-center gap-2 ${
+              hasPrescription
+                ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+            title={!hasPrescription ? 'Link a prescription first' : ''}
+          >
+            <CreditCard size={18} />
+            Proceed to Checkout
+          </button>
+        </div>
       )}
     </div>
   );

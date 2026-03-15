@@ -1,5 +1,10 @@
 // services/api.js
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+const getAuthHeader = () => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 class ApiService {
   constructor() {
@@ -8,105 +13,96 @@ class ApiService {
 
   async get(endpoint) {
     try {
-      console.log(`🔵 GET Request to: ${this.baseUrl}${endpoint}`);
-      const response = await fetch(`${this.baseUrl}${endpoint}`);
-      
-      console.log(`🔵 Response status:`, response.status);
-      
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        headers: { ...getAuthHeader() }
+      });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        console.error(`🔴 GET Error:`, error);
         throw new Error(error.error || `API Error: ${response.status}`);
       }
-      
-      const data = await response.json();
-      console.log(`🟢 GET Success:`, data);
-      return data;
+      return response.json();
     } catch (error) {
-      console.error(`🔴 GET Failed:`, error);
       throw error;
     }
   }
 
   async post(endpoint, data) {
     try {
-      console.log(`🟡 POST Request to: ${this.baseUrl}${endpoint}`);
-      console.log(`🟡 Request Data:`, data);
-      
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
+          ...getAuthHeader()
         },
         body: JSON.stringify(data),
       });
-      
-      console.log(`🟡 Response status:`, response.status);
-      
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        console.error(`🔴 POST Error:`, error);
-        throw new Error(error.error || `API Error: ${response.status}`);
+        const errorBody = await response.json().catch(() => ({}));
+        const err = new Error(errorBody.error || `API Error: ${response.status}`);
+        if (errorBody.item) err.item = errorBody.item;
+        if (errorBody.items) err.items = errorBody.items;
+        throw err;
       }
-      
-      const responseData = await response.json();
-      console.log(`🟢 POST Success:`, responseData);
-      return responseData;
+      return response.json();
     } catch (error) {
-      console.error(`🔴 POST Failed:`, error);
       throw error;
     }
   }
 
   async put(endpoint, data) {
     try {
-      console.log(`🟡 PUT Request to: ${this.baseUrl}${endpoint}`);
-      console.log(`🟡 Request Data:`, data);
-      
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader()
+        },
         body: JSON.stringify(data),
       });
-      
-      console.log(`🟡 Response status:`, response.status);
-      
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        console.error(`🔴 PUT Error:`, error);
         throw new Error(error.error || `API Error: ${response.status}`);
       }
-      
-      const responseData = await response.json();
-      console.log(`🟢 PUT Success:`, responseData);
-      return responseData;
+      return response.json();
     } catch (error) {
-      console.error(`🔴 PUT Failed:`, error);
+      throw error;
+    }
+  }
+
+  async patch(endpoint, data) {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader()
+        },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const err = new Error(errorBody.error || `API Error: ${response.status}`);
+        if (errorBody.items) err.items = errorBody.items;
+        throw err;
+      }
+      return response.json();
+    } catch (error) {
       throw error;
     }
   }
 
   async delete(endpoint) {
     try {
-      console.log(`🔴 DELETE Request to: ${this.baseUrl}${endpoint}`);
-      
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: "DELETE",
+        headers: { ...getAuthHeader() }
       });
-      
-      console.log(`🔴 Response status:`, response.status);
-      
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        console.error(`🔴 DELETE Error:`, error);
         throw new Error(error.error || `API Error: ${response.status}`);
       }
-      
-      const responseData = await response.json();
-      console.log(`🟢 DELETE Success:`, responseData);
-      return responseData;
+      return response.json();
     } catch (error) {
-      console.error(`🔴 DELETE Failed:`, error);
       throw error;
     }
   }
