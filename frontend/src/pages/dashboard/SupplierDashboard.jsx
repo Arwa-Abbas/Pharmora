@@ -65,7 +65,8 @@ function SupplierDashboard() {
     reorder_level: "20",
     purchase_price: "",
     selling_price: "",
-    expiry_date: ""
+    expiry_date: "",
+    image_url: ""
   });
   const [showAddMedicine, setShowAddMedicine] = useState(false);
   const [stockErrorItem, setStockErrorItem] = useState(null);
@@ -304,7 +305,8 @@ const loadData = async () => {
         reorder_level: "20",
         purchase_price: "",
         selling_price: "",
-        expiry_date: ""
+        expiry_date: "",
+        image_url: ""
       });
       setShowAddMedicine(false);
 
@@ -777,6 +779,25 @@ const loadData = async () => {
                         onChange={(e) => setNewInventoryItem({ ...newInventoryItem, expiry_date: e.target.value })}
                         className="w-full p-3 border rounded-lg"
                       />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium mb-2">Medicine Image</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onloadend = () => setNewInventoryItem({ ...newInventoryItem, image_url: reader.result });
+                          reader.readAsDataURL(file);
+                        }}
+                        className="w-full p-3 border rounded-lg text-sm"
+                      />
+                      {newInventoryItem.image_url && (
+                        <img src={newInventoryItem.image_url} alt="Preview" className="mt-2 h-24 w-24 object-cover rounded-lg border" />
+                      )}
                     </div>
                   </div>
 

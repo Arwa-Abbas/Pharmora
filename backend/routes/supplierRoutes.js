@@ -163,7 +163,7 @@ router.post("/api/supplier/:supplierId/inventory", authenticateUser, async (req,
 // Create a new medicine and add it directly to supplier inventory
 router.post("/api/supplier/:supplierId/inventory/new-medicine", authenticateUser, async (req, res) => {
   const { supplierId } = req.params;
-  const { medicine_name, category, description, quantity_available, reorder_level, purchase_price, selling_price, expiry_date } = req.body;
+  const { medicine_name, category, description, quantity_available, reorder_level, purchase_price, selling_price, expiry_date, image_url } = req.body;
 
   if (!medicine_name || !category || !quantity_available || !selling_price) {
     return res.status(400).json({ error: "Medicine name, category, quantity, and selling price are required" });
@@ -182,6 +182,12 @@ router.post("/api/supplier/:supplierId/inventory/new-medicine", authenticateUser
 
     if (existing.rows.length > 0) {
       medicineId = existing.rows[0].medicine_id;
+      if (image_url) {
+        await client.query(
+          `UPDATE medicines SET image_url = $1 WHERE medicine_id = $2`,
+          [image_url, medicineId]
+        );
+      }
     } else {
       // Get supplier's user_id for medicines.supplier_id
       const supplierRow = await client.query(
@@ -191,10 +197,10 @@ router.post("/api/supplier/:supplierId/inventory/new-medicine", authenticateUser
       const supplierUserId = supplierRow.rows[0]?.user_id || null;
 
       const medicineResult = await client.query(
-        `INSERT INTO medicines (name, category, description, stock, price, supplier_id)
-         VALUES ($1, $2, $3, 0, $4, $5)
+        `INSERT INTO medicines (name, category, description, stock, price, supplier_id, image_url)
+         VALUES ($1, $2, $3, 0, $4, $5, $6)
          RETURNING medicine_id`,
-        [medicine_name.trim(), category, description || '', selling_price, supplierUserId]
+        [medicine_name.trim(), category, description || '', selling_price, supplierUserId, image_url || null]
       );
       medicineId = medicineResult.rows[0].medicine_id;
     }
