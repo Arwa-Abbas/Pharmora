@@ -1,166 +1,236 @@
 // components/Navbar.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from "motion/react";
+import { FiSearch, FiX, FiUser, FiLogOut, FiShoppingCart } from "react-icons/fi";
 import authService from "../services/authService";
 import medicineService from "../services/medicineService";
-import { getFullName } from "../utils/formatters";
+
+const SPRING = { mass: 0.1, stiffness: 150, damping: 12 };
+
+function NavLink({ to, label, mouseX, isActive }) {
+  const ref = useRef(null);
+
+  const distance = useTransform(mouseX, (val) => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return 150;
+    return Math.abs(val - (rect.x + rect.width / 2));
+  });
+
+  const scale = useTransform(distance, [0, 120], [1.35, 1], { clamp: true });
+  const springScale = useSpring(scale, SPRING);
+
+  return (
+    <motion.div ref={ref} style={{ scale: springScale, display: "inline-block" }}>
+      <Link
+        to={to}
+        className={`relative text-sm font-medium px-1 transition-colors duration-200 whitespace-nowrap
+          ${isActive ? "text-cyan-600" : "text-gray-600 hover:text-gray-900"}`}
+      >
+        {label}
+        {isActive && (
+          <span className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-500 to-teal-500 rounded-full" />
+        )}
+      </Link>
+    </motion.div>
+  );
+}
 
 function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = authService.getCurrentUser();
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [medicines, setMedicines] = useState([]);
   const [filteredMedicines, setFilteredMedicines] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const mouseX = useMotionValue(Infinity);
+  const searchInputRef = useRef(null);
 
   useEffect(() => {
-    const loadMedicines = async () => {
-      try {
-        const data = await medicineService.getAllMedicines();
-        setMedicines(data);
-      } catch (err) {
-        console.error("Error loading medicines:", err);
-      }
-    };
-    loadMedicines();
+    medicineService.getAllMedicines().then(setMedicines).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredMedicines([]);
-      setShowSuggestions(false);
-    } else {
-      const filtered = medicines.filter(medicine =>
-        medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        medicine.category?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredMedicines(filtered.slice(0, 5));
-      setShowSuggestions(true);
-    }
+    if (!searchTerm.trim()) { setFilteredMedicines([]); return; }
+    const filtered = medicines.filter(m =>
+      m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.category?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredMedicines(filtered.slice(0, 5));
   }, [searchTerm, medicines]);
+
+  const openSearch = () => {
+    setSearchOpen(true);
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  };
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setSearchTerm("");
+    setFilteredMedicines([]);
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
       navigate(`/products?search=${encodeURIComponent(searchTerm)}`);
-      setSearchTerm("");
-      setShowSuggestions(false);
+      closeSearch();
     }
   };
 
-  const handleSuggestionClick = (medicineName) => {
-    navigate(`/products?search=${encodeURIComponent(medicineName)}`);
-    setSearchTerm("");
-    setShowSuggestions(false);
-  };
-
-  const handleSignOut = () => {
-    authService.logout();
-    navigate("/login");
+  const handleSuggestionClick = (name) => {
+    navigate(`/products?search=${encodeURIComponent(name)}`);
+    closeSearch();
   };
 
   const handleMyAccount = () => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-
-    switch (user.role) {
-      case "Doctor": navigate("/doctor-dashboard"); break;
-      case "Patient": navigate("/patient-dashboard"); break;
-      case "Pharmacist": navigate("/pharmacist-dashboard"); break;
-      case "Supplier": navigate("/supplier-dashboard"); break;
-      case "Admin": navigate("/admin-dashboard"); break;
-      default: navigate("/login");
-    }
+    const routes = { Doctor: "/doctor-dashboard", Patient: "/patient-dashboard", Pharmacist: "/pharmacist-dashboard", Supplier: "/supplier-dashboard", Admin: "/admin-dashboard" };
+    navigate(routes[user?.role] || "/login");
   };
 
-  if (
-    location.pathname.includes("dashboard") ||
-    location.pathname === "/login"
-  ) {
-    return null;
-  }
+  if (location.pathname.includes("dashboard") || location.pathname === "/login") return null;
+
+  const navLinks = [
+    { to: "/",            label: "Home" },
+    { to: "/products",    label: "Products" },
+    { to: "/doctors",     label: "Doctors" },
+    { to: "/suppliers",   label: "Suppliers" },
+    { to: "/pharmacists", label: "Pharmacists" },
+  ];
 
   return (
-    <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md shadow-sm z-50 border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
-        <Link to="/" className="text-2xl font-bold bg-gradient-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent mr-4">
+    <div className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4">
+      <motion.nav
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="bg-white/85 backdrop-blur-xl border border-white/60 shadow-lg shadow-black/10 rounded-full px-8 py-3.5 flex items-center gap-6 max-w-6xl w-full"
+      >
+        {/* Logo */}
+        <Link to="/" className="text-xl font-bold bg-gradient-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent flex-shrink-0 mr-1">
           Pharmora
         </Link>
 
-        <div className="flex-1 max-w-2xl relative mx-4">
-          <form onSubmit={handleSearchSubmit}>
-            <input
-              type="text"
-              placeholder="Search medicines..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onFocus={() => searchTerm && setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-              className="w-full p-4 rounded-lg text-gray-800 shadow focus:ring-2 focus:ring-cyan-600 outline-none border border-gray-300 text-lg"
+        {/* Divider */}
+        <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
+
+        {/* Nav links with dock animation */}
+        <div
+          className="flex items-center gap-7 flex-1"
+          onMouseMove={(e) => mouseX.set(e.clientX)}
+          onMouseLeave={() => mouseX.set(Infinity)}
+        >
+          {navLinks.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              label={link.label}
+              mouseX={mouseX}
+              isActive={location.pathname === link.to}
             />
-          </form>
+          ))}
+        </div>
 
-          {showSuggestions && filteredMedicines.length > 0 && (
-            <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg shadow-lg mt-1 z-50 max-h-80 overflow-y-auto">
-              {filteredMedicines.map((medicine) => (
-                <div
-                  key={medicine.medicine_id}
-                  className="p-4 hover:bg-gray-100 cursor-pointer border-b border-gray-200 last:border-b-0"
-                  onMouseDown={() => handleSuggestionClick(medicine.name)}
-                >
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={medicine.image_url || "/images/placeholder.jpg"}
-                      alt={medicine.name}
-                      className="w-12 h-12 object-cover rounded"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 text-lg">{medicine.name}</p>
-                      <p className="text-gray-600">{medicine.category}</p>
-                      <p className="text-green-700 font-semibold">Rs. {medicine.price}</p>
+        {/* Search */}
+        <AnimatePresence mode="wait">
+          {searchOpen ? (
+            <motion.div
+              key="search-open"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 220, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="relative flex-shrink-0 overflow-visible"
+            >
+              <form onSubmit={handleSearchSubmit}>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onBlur={() => setTimeout(closeSearch, 200)}
+                  placeholder="Search medicines..."
+                  className="w-full pl-3 pr-8 py-1.5 text-sm bg-gray-100 rounded-full outline-none focus:ring-2 focus:ring-cyan-400 border border-transparent"
+                />
+              </form>
+              <button onClick={closeSearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <FiX size={14} />
+              </button>
+              {filteredMedicines.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 min-w-[280px]">
+                  {filteredMedicines.map((m) => (
+                    <div
+                      key={m.medicine_id}
+                      onMouseDown={() => handleSuggestionClick(m.name)}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
+                    >
+                      <img src={m.image_url || "/images/placeholder.jpg"} alt={m.name} className="w-9 h-9 object-cover rounded-lg flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 text-sm truncate">{m.name}</p>
+                        <p className="text-xs text-gray-400">{m.category} · <span className="text-green-600 font-medium">Rs. {m.price}</span></p>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center space-x-6">
-          <Link to="/" className="text-gray-700 hover:text-cyan-600 transition font-medium">Home</Link>
-          <Link to="/products" className="text-gray-700 hover:text-cyan-600 transition font-medium">Products</Link>
-          <Link to="/doctors" className="text-gray-700 hover:text-cyan-600 transition font-medium">Doctors</Link>
-          <Link to="/suppliers" className="text-gray-700 hover:text-cyan-600 transition font-medium">Suppliers</Link>
-          <Link to="/pharmacists" className="text-gray-700 hover:text-cyan-600 transition font-medium">Pharmacists</Link>
-
-          {!user ? (
-            <Link to="/login">
-              <button className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-teal-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-300">
-                Sign In
-              </button>
-            </Link>
-          ) : (
-            <div className="flex items-center space-x-3">
-              <span className="text-sm text-gray-700 font-medium">Welcome, {user.name || user.role}</span>
-              <button onClick={handleMyAccount} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded transition font-medium">
-                My Account
-              </button>
-              {user.role === "Patient" && (
-                <button onClick={() => navigate("/cart")} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition font-medium">
-                  View Cart
-                </button>
               )}
-              <button onClick={handleSignOut} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white transition font-medium">
-                Sign Out
-              </button>
-            </div>
+            </motion.div>
+          ) : (
+            <motion.button
+              key="search-icon"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={openSearch}
+              className="p-2 text-gray-500 hover:text-cyan-600 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+            >
+              <FiSearch size={16} />
+            </motion.button>
           )}
-        </div>
-      </div>
-    </nav>
+        </AnimatePresence>
+
+        {/* Divider */}
+        <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
+
+        {/* Auth */}
+        {!user ? (
+          <Link to="/login" className="flex-shrink-0">
+            <button className="px-4 py-1.5 bg-gradient-to-r from-cyan-600 to-teal-600 text-white text-sm font-semibold rounded-full hover:shadow-md hover:shadow-cyan-200 transition-all duration-200 whitespace-nowrap">
+              Sign In
+            </button>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs text-gray-500 font-medium hidden lg:block max-w-[100px] truncate">
+              {user.name || user.role}
+            </span>
+            <button
+              onClick={handleMyAccount}
+              title="My Account"
+              className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-full transition-colors"
+            >
+              <FiUser size={16} />
+            </button>
+            {user.role === "Patient" && (
+              <button
+                onClick={() => navigate("/cart")}
+                title="View Cart"
+                className="p-2 text-gray-500 hover:text-cyan-600 hover:bg-cyan-50 rounded-full transition-colors"
+              >
+                <FiShoppingCart size={16} />
+              </button>
+            )}
+            <button
+              onClick={() => { authService.logout(); navigate("/login"); }}
+              title="Sign Out"
+              className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+            >
+              <FiLogOut size={16} />
+            </button>
+          </div>
+        )}
+      </motion.nav>
+    </div>
   );
 }
 

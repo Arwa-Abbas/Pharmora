@@ -1,122 +1,100 @@
 // pages/Pharmacists.jsx
 import React, { useEffect, useState } from "react";
-import { FaPills, FaClinicMedical, FaPhone, FaEnvelope, FaMapMarkerAlt } from "react-icons/fa";
+import { FiMail, FiPhone, FiMapPin, FiSearch, FiPackage } from "react-icons/fi";
 import userService from "../services/userService";
 import { getFullName } from "../utils/formatters";
 
 function Pharmacists() {
   const [pharmacists, setPharmacists] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const fetchPharmacists = async () => {
-      try {
-        setLoading(true);
-        const data = await userService.getAllPharmacists();
-        setPharmacists(data);
-      } catch (err) {
-        console.error("Error fetching pharmacists:", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPharmacists();
+    userService.getAllPharmacists()
+      .then(setPharmacists)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
-          <p className="text-gray-600 mt-4 text-lg">Loading pharmacists...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="text-center text-red-600">
-          <p className="text-lg">Error loading pharmacists</p>
-          <p className="text-sm mt-2">{error}</p>
-        </div>
-      </div>
-    );
-  }
+  const filtered = pharmacists.filter(p =>
+    getFullName(p).toLowerCase().includes(search.toLowerCase()) ||
+    p.pharmacy_name?.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      <div className="w-full h-64 overflow-hidden">
-        <img
-          src="/images/pharmacists.jpg"
-          alt="Pharmacists Banner"
-          className="w-full h-full object-cover"
-        />
+    <div className="min-h-screen bg-slate-100">
+      {/* Hero */}
+      <div className="relative pt-28 pb-16 px-8 bg-gradient-to-r from-cyan-600 to-teal-600 overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-10 left-20 w-72 h-72 bg-white rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-10 w-64 h-64 bg-white rounded-full blur-3xl" />
+        </div>
+        <div className="max-w-7xl mx-auto text-center relative">
+          <span className="inline-block text-sm font-semibold text-teal-700 bg-white/90 px-4 py-1.5 rounded-full tracking-wide uppercase mb-4">
+            Pharmacy Network
+          </span>
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">Our Certified Pharmacists</h1>
+          <p className="text-white/80 text-lg max-w-xl mx-auto mb-8">
+            Trusted pharmacists ready to fulfill your prescriptions and deliver medicines to your door.
+          </p>
+          <div className="max-w-md mx-auto relative">
+            <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search by name or pharmacy..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-white border-0 rounded-full shadow-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+          </div>
+        </div>
       </div>
 
-      <h2 className="text-3xl font-bold text-center text-[#2b0d0d] mt-8 mb-4">
-        Our Certified Pharmacists
-      </h2>
-
-      <div className="max-w-6xl mx-auto px-6 pb-12">
-        {pharmacists.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No pharmacists found.</p>
+      {/* Cards */}
+      <div className="max-w-7xl mx-auto px-8 py-14">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600" />
           </div>
+        ) : filtered.length === 0 ? (
+          <p className="text-center text-gray-400 text-lg py-20">No pharmacists found.</p>
         ) : (
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8">
-            {pharmacists.map((pharmacist) => (
-              <div
-                key={pharmacist.user_id}
-                className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition duration-300 text-center"
-              >
-                <div className="w-24 h-24 rounded-full mx-auto mb-4 bg-blue-50 flex items-center justify-center border-4 border-blue-200">
-                  <FaPills className="w-12 h-12 text-blue-600" />
-                </div>
-                
-                <h3 className="text-xl font-semibold text-[#2b0d0d] mb-1">
-                  {getFullName(pharmacist)}
-                </h3>
-                
-                <div className="flex items-center justify-center gap-2 text-blue-600 font-medium text-sm mb-3">
-                  <FaClinicMedical className="w-4 h-4" />
-                  <span>{pharmacist.pharmacy_name || "Pharmacy"}</span>
-                </div>
-                
-                <div className="space-y-2 text-sm">
-                  {pharmacist.email && (
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <FaEnvelope className="w-4 h-4 text-blue-500" />
-                      <span className="break-words">{pharmacist.email}</span>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {filtered.map((pharmacist) => (
+              <div key={pharmacist.user_id} className="flex">
+                <div className="bg-white rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 p-8 flex flex-col items-center w-full">
+                  <div className="flex flex-col items-center flex-1">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center mb-5 shadow-lg flex-shrink-0">
+                      <FiPackage className="text-white" size={38} />
                     </div>
-                  )}
-                  
-                  {pharmacist.phone && (
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <FaPhone className="w-4 h-4 text-green-500" />
-                      <span>{pharmacist.phone}</span>
+                    <h3 className="text-lg font-bold text-gray-900 mb-1 text-center">{getFullName(pharmacist)}</h3>
+                    <div className="h-8 flex items-center justify-center">
+                      {pharmacist.pharmacy_name ? (
+                        <span className="inline-block text-sm font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+                          {pharmacist.pharmacy_name}
+                        </span>
+                      ) : (
+                        <span className="inline-block text-sm font-semibold text-gray-300 bg-gray-50 px-3 py-1 rounded-full">
+                          Pharmacy
+                        </span>
+                      )}
                     </div>
-                  )}
-                  
-                  {pharmacist.address && (
-                    <div className="flex items-start gap-2 text-gray-500">
-                      <FaMapMarkerAlt className="w-4 h-4 text-red-500 mt-0.5" />
-                      <span className="text-left">{pharmacist.address}</span>
-                    </div>
-                  )}
-                </div>
-
-                {(pharmacist.city || pharmacist.country) && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <p className="text-gray-400 text-xs">
-                      {pharmacist.city}{pharmacist.city && pharmacist.country ? ', ' : ''}
-                      {pharmacist.country}
-                    </p>
                   </div>
-                )}
+                  <div className="w-full space-y-2.5 mt-5 pt-5 border-t border-gray-100 text-left">
+                    <div className="flex items-center gap-2.5 text-gray-500 text-sm min-h-[20px]">
+                      <FiMail size={15} className="text-cyan-500 flex-shrink-0" />
+                      <span className="truncate">{pharmacist.email || "—"}</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-gray-500 text-sm min-h-[20px]">
+                      <FiPhone size={15} className="text-teal-500 flex-shrink-0" />
+                      <span>{pharmacist.phone || "—"}</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-gray-500 text-sm min-h-[20px]">
+                      <FiMapPin size={15} className="text-teal-400 flex-shrink-0" />
+                      <span className="truncate">{pharmacist.address || [pharmacist.city, pharmacist.country].filter(Boolean).join(", ") || "—"}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
