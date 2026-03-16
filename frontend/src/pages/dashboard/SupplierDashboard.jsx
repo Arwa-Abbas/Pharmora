@@ -5,7 +5,6 @@ import { useNotification } from "../../contexts/NotificationContext";
 import { useAuth } from "../../hooks/useAuth";
 import userService from "../../services/userService";
 import supplierService from "../../services/supplierService";
-import medicineService from "../../services/medicineService";
 import api from "../../services/api";
 import StatsCard from "../../components/dashboard/StatsCard";
 import RequestCard from "../../components/dashboard/RequestCard";
@@ -42,7 +41,6 @@ function SupplierDashboard() {
   const [stockRequests, setStockRequests] = useState([]);
   const [supplierInventory, setSupplierInventory] = useState([]);
   const [supplierDetails, setSupplierDetails] = useState(null);
-  const [availableMedicines, setAvailableMedicines] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [stats, setStats] = useState({
     pending_requests: 0,
@@ -60,7 +58,9 @@ function SupplierDashboard() {
   });
 
   const [newInventoryItem, setNewInventoryItem] = useState({
-    medicine_id: "",
+    medicine_name: "",
+    category: "",
+    description: "",
     quantity_available: "",
     reorder_level: "20",
     purchase_price: "",
@@ -70,6 +70,8 @@ function SupplierDashboard() {
   const [showAddMedicine, setShowAddMedicine] = useState(false);
   const [stockErrorItem, setStockErrorItem] = useState(null);
   const [rejectingRequestId, setRejectingRequestId] = useState(null);
+  const [shippingRequestId, setShippingRequestId] = useState(null);
+  const [trackingInput, setTrackingInput] = useState("");
 
   const [editingItem, setEditingItem] = useState(null);
   const [processingRequest, setProcessingRequest] = useState(null);
@@ -151,13 +153,6 @@ const loadData = async () => {
         setSupplierInventory([]);
       }
 
-      try {
-        const medicinesData = await medicineService.getAvailableMedicines();
-        setAvailableMedicines(medicinesData);
-      } catch (err) {
-        setAvailableMedicines([]);
-      }
-
       showNotification("Dashboard loaded successfully", "success");
     } catch (err) {
       console.error("Error loading data:", err);
@@ -225,13 +220,18 @@ const loadData = async () => {
     }
   };
 
-  const handleShipOrder = async (requestId) => {
-    const trackingInfo = window.prompt("Enter tracking information (optional):");
+  const handleShipOrder = (requestId) => {
+    setTrackingInput("");
+    setShippingRequestId(requestId);
+  };
+
+  const confirmShipOrder = async () => {
+    const requestId = shippingRequestId;
+    setShippingRequestId(null);
     setProcessingRequest(requestId);
     try {
-      await supplierService.shipOrder(requestId, trackingInfo || "");
+      await supplierService.shipOrder(requestId, trackingInput.trim());
       showNotification("Order marked as shipped!", "success");
-
       const requestsData = await supplierService.getStockRequests(supplierDetails.supplier_id);
       setStockRequests(requestsData);
     } catch (err) {
@@ -242,9 +242,6 @@ const loadData = async () => {
   };
 
   const handleDeliverOrder = async (requestId) => {
-    if (!window.confirm("Mark this order as delivered?")) {
-      return;
-    }
 
     setProcessingRequest(requestId);
     try {
@@ -291,16 +288,18 @@ const loadData = async () => {
   };
 
   const handleAddInventoryItem = async () => {
-    if (!newInventoryItem.medicine_id || !newInventoryItem.quantity_available || !newInventoryItem.selling_price) {
-      showNotification("Please fill in required fields", "warning");
+    if (!newInventoryItem.medicine_name || !newInventoryItem.category || !newInventoryItem.quantity_available || !newInventoryItem.selling_price) {
+      showNotification("Please fill in all required fields", "warning");
       return;
     }
 
     try {
-      await userService.addToSupplierInventory(supplierDetails.supplier_id, newInventoryItem);
+      await api.post(`/api/supplier/${supplierDetails.supplier_id}/inventory/new-medicine`, newInventoryItem);
       showNotification("Medicine added to inventory!", "success");
       setNewInventoryItem({
-        medicine_id: "",
+        medicine_name: "",
+        category: "",
+        description: "",
         quantity_available: "",
         reorder_level: "20",
         purchase_price: "",
@@ -453,6 +452,16 @@ const loadData = async () => {
           </button>
 
           <button
+            onClick={() => setActiveTab("profile")}
+            className={`w-full flex items-center gap-3 p-3 rounded-lg transition ${
+              activeTab === "profile" ? "bg-white text-teal-600" : "hover:bg-teal-500"
+            }`}
+          >
+            <Edit size={20} />
+            <span>My Profile</span>
+          </button>
+
+          <button
             onClick={() => navigate("/")}
             className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-teal-500 transition"
           >
@@ -491,13 +500,6 @@ const loadData = async () => {
               >
                 <RefreshCw size={20} />
                 Refresh
-              </button>
-              <button
-                onClick={() => setIsEditingDetails(true)}
-                className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 flex items-center gap-2"
-              >
-                <Edit size={20} />
-                Edit Details
               </button>
             </div>
           </div>
@@ -670,22 +672,54 @@ const loadData = async () => {
 
               {showAddMedicine && (
                 <div className="bg-white rounded-lg shadow p-6 mb-6">
-                  <h3 className="text-xl font-semibold mb-4">Add Medicine to Inventory</h3>
+                  <h3 className="text-xl font-semibold mb-1">Add Medicine to Inventory</h3>
+                  <p className="text-sm text-gray-500 mb-4">Enter the medicine details. If it already exists by name, your stock will be added to it.</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">Medicine *</label>
+                      <label className="block text-sm font-medium mb-2">Medicine Name *</label>
+                      <input
+                        type="text"
+                        value={newInventoryItem.medicine_name}
+                        onChange={(e) => setNewInventoryItem({ ...newInventoryItem, medicine_name: e.target.value })}
+                        placeholder="e.g. Augmentin 625mg"
+                        className="w-full p-3 border rounded-lg"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Category *</label>
                       <select
-                        value={newInventoryItem.medicine_id}
-                        onChange={(e) => setNewInventoryItem({ ...newInventoryItem, medicine_id: e.target.value })}
+                        value={newInventoryItem.category}
+                        onChange={(e) => setNewInventoryItem({ ...newInventoryItem, category: e.target.value })}
                         className="w-full p-3 border rounded-lg"
                       >
-                        <option value="">Select Medicine</option>
-                        {availableMedicines.map(medicine => (
-                          <option key={medicine.medicine_id} value={medicine.medicine_id}>
-                            {medicine.name}
-                          </option>
-                        ))}
+                        <option value="">Select Category</option>
+                        <option>Antibiotics</option>
+                        <option>Analgesics</option>
+                        <option>Antifungals</option>
+                        <option>Antivirals</option>
+                        <option>Antihistamines</option>
+                        <option>Antihypertensives</option>
+                        <option>Antidiabetics</option>
+                        <option>Vitamins & Supplements</option>
+                        <option>Cardiovascular</option>
+                        <option>Gastrointestinal</option>
+                        <option>Respiratory</option>
+                        <option>Dermatology</option>
+                        <option>Vaccines</option>
+                        <option>Other</option>
                       </select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium mb-2">Description</label>
+                      <input
+                        type="text"
+                        value={newInventoryItem.description}
+                        onChange={(e) => setNewInventoryItem({ ...newInventoryItem, description: e.target.value })}
+                        placeholder="Brief description (optional)"
+                        className="w-full p-3 border rounded-lg"
+                      />
                     </div>
 
                     <div>
@@ -694,17 +728,19 @@ const loadData = async () => {
                         type="number"
                         value={newInventoryItem.quantity_available}
                         onChange={(e) => setNewInventoryItem({ ...newInventoryItem, quantity_available: e.target.value })}
+                        placeholder="Units available"
                         className="w-full p-3 border rounded-lg"
-                        min="0"
+                        min="1"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">Reorder Level</label>
+                      <label className="block text-sm font-medium mb-2">Production Threshold</label>
                       <input
                         type="number"
                         value={newInventoryItem.reorder_level}
                         onChange={(e) => setNewInventoryItem({ ...newInventoryItem, reorder_level: e.target.value })}
+                        placeholder="Alert when stock falls below this"
                         className="w-full p-3 border rounded-lg"
                       />
                     </div>
@@ -715,6 +751,7 @@ const loadData = async () => {
                         type="number"
                         value={newInventoryItem.purchase_price}
                         onChange={(e) => setNewInventoryItem({ ...newInventoryItem, purchase_price: e.target.value })}
+                        placeholder="Your cost price"
                         className="w-full p-3 border rounded-lg"
                         step="0.01"
                       />
@@ -726,6 +763,7 @@ const loadData = async () => {
                         type="number"
                         value={newInventoryItem.selling_price}
                         onChange={(e) => setNewInventoryItem({ ...newInventoryItem, selling_price: e.target.value })}
+                        placeholder="Price charged to pharmacies"
                         className="w-full p-3 border rounded-lg"
                         step="0.01"
                       />
@@ -846,55 +884,139 @@ const loadData = async () => {
             );
           })()}
 
-          {isEditingDetails && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-              <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
-                <h3 className="text-xl font-semibold mb-4">Edit Company Details</h3>
+          {activeTab === "profile" && (
+            <div>
+              <h2 className="text-2xl font-bold mb-6">My Profile</h2>
+              <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Company Name</label>
-                    <input
-                      type="text"
-                      value={editedDetails.company_name}
-                      onChange={(e) => setEditedDetails({ ...editedDetails, company_name: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                    />
+                    <label className="text-sm font-medium text-gray-600">Email</label>
+                    <p className="text-lg font-semibold">{user?.email}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Contact Number</label>
-                    <input
-                      type="text"
-                      value={editedDetails.contact_number}
-                      onChange={(e) => setEditedDetails({ ...editedDetails, contact_number: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                    />
+                    <label className="text-sm font-medium text-gray-600">Role</label>
+                    <p className="text-lg font-semibold">{user?.role}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Address</label>
-                    <textarea
-                      value={editedDetails.address}
-                      onChange={(e) => setEditedDetails({ ...editedDetails, address: e.target.value })}
-                      className="w-full p-3 border rounded-lg"
-                      rows="3"
-                    />
+                    <label className="text-sm font-medium text-gray-600">Company Name</label>
+                    {isEditingDetails ? (
+                      <input
+                        type="text"
+                        value={editedDetails.company_name}
+                        onChange={(e) => setEditedDetails({ ...editedDetails, company_name: e.target.value })}
+                        className="mt-1 w-full p-2 border rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold">{editedDetails.company_name || <span className="text-gray-400">—</span>}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Contact Number</label>
+                    {isEditingDetails ? (
+                      <input
+                        type="text"
+                        value={editedDetails.contact_number}
+                        onChange={(e) => setEditedDetails({ ...editedDetails, contact_number: e.target.value })}
+                        className="mt-1 w-full p-2 border rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold">{editedDetails.contact_number || <span className="text-gray-400">—</span>}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Address</label>
+                    {isEditingDetails ? (
+                      <textarea
+                        value={editedDetails.address}
+                        onChange={(e) => setEditedDetails({ ...editedDetails, address: e.target.value })}
+                        className="mt-1 w-full p-2 border rounded-lg"
+                        rows="3"
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold">{editedDetails.address || <span className="text-gray-400">—</span>}</p>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={() => setIsEditingDetails(false)}
-                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleUpdateSupplierDetails}
-                    className="flex-1 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
-                  >
-                    Save Changes
-                  </button>
+                <div className="mt-6 flex gap-3">
+                  {isEditingDetails ? (
+                    <>
+                      <button
+                        onClick={handleUpdateSupplierDetails}
+                        disabled={loading}
+                        className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-gray-400"
+                      >
+                        {loading ? "Saving..." : "Save Changes"}
+                      </button>
+                      <button
+                        onClick={() => setIsEditingDetails(false)}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditingDetails(true)}
+                      className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+                    >
+                      Edit Profile
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
+          )}
+
+          {shippingRequestId && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Mark as Shipped</h3>
+                    <button onClick={() => setShippingRequestId(null)} className="text-gray-400 hover:text-gray-600">
+                      <X size={22} />
+                    </button>
+                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tracking Information <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={trackingInput}
+                    onChange={(e) => setTrackingInput(e.target.value)}
+                    placeholder="e.g. TRK-123456"
+                    className="w-full p-3 border rounded-lg text-sm"
+                    autoFocus
+                  />
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      onClick={() => setShippingRequestId(null)}
+                      className="flex-1 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmShipOrder}
+                      className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Truck size={16} />
+                      Confirm Shipment
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {rejectingRequestId && (
+            <ReasonModal
+              title="Reject Stock Request"
+              placeholder="Enter reason for rejection (e.g. delay in restock, out of stock)..."
+              confirmLabel="Reject Request"
+              confirmColor="red"
+              onConfirm={confirmRejectRequest}
+              onCancel={() => setRejectingRequestId(null)}
+            />
           )}
         </div>
       </div>

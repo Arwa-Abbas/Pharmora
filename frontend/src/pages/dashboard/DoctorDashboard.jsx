@@ -10,6 +10,7 @@ import doctorService from "../../services/doctorService";
 import StatsCard from "../../components/dashboard/StatsCard";
 import PrescriptionCard from "../../components/dashboard/PrescriptionCard";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import api from "../../services/api";
 import {
   FileText,
   Users,
@@ -21,7 +22,8 @@ import {
   Clock,
   Plus,
   UserCheck,
-  Search
+  Search,
+  User
 } from "lucide-react";
 
 function DoctorDashboard() {
@@ -301,6 +303,16 @@ function DoctorDashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab("profile")}
+            className={`w-full flex items-center gap-3 p-3 rounded-lg transition ${
+              activeTab === "profile" ? "bg-white text-blue-600" : "hover:bg-blue-500"
+            }`}
+          >
+            <User size={20} />
+            <span>My Profile</span>
+          </button>
+
+          <button
             onClick={() => navigate("/")}
             className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-blue-500 transition"
           >
@@ -576,6 +588,10 @@ function DoctorDashboard() {
             </div>
           )}
 
+          {activeTab === "profile" && (
+            <DoctorProfileTab user={user} doctorSpecialty={doctorSpecialty} showNotification={showNotification} />
+          )}
+
           {activeTab === "patients" && (
             <div>
               <h2 className="text-2xl font-bold mb-6">My Patients</h2>
@@ -622,6 +638,101 @@ function DoctorDashboard() {
                 ))}
               </div>
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DoctorProfileTab({ user, doctorSpecialty, showNotification }) {
+  const [editing, setEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [form, setForm] = React.useState({
+    first_name: user?.firstName || '',
+    last_name: user?.lastName || '',
+    phone: user?.phone || '',
+    address: user?.address || '',
+    city: user?.city || '',
+    country: user?.country || '',
+    specialty: doctorSpecialty || '',
+    medical_license: user?.medical_license || ''
+  });
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/api/doctors/${user.id}`, form);
+      showNotification("Profile updated!", "success");
+      setEditing(false);
+    } catch (err) {
+      showNotification(err.message || "Failed to update profile", "error");
+    }
+    setSaving(false);
+  };
+
+  const field = (label, key) => (
+    <div key={key}>
+      <label className="text-sm font-medium text-gray-600">{label}</label>
+      {editing ? (
+        <input
+          type="text"
+          value={form[key]}
+          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+          className="mt-1 w-full p-2 border rounded-lg"
+        />
+      ) : (
+        <p className="text-lg font-semibold">{form[key] || <span className="text-gray-400">—</span>}</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-6">My Profile</h2>
+      <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-600">Email</label>
+            <p className="text-lg font-semibold">{user?.email}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">Role</label>
+            <p className="text-lg font-semibold">{user?.role}</p>
+          </div>
+          {field("First Name", "first_name")}
+          {field("Last Name", "last_name")}
+          {field("Phone", "phone")}
+          {field("Address", "address")}
+          {field("City", "city")}
+          {field("Country", "country")}
+          {field("Specialty", "specialty")}
+          {field("Medical License", "medical_license")}
+        </div>
+        <div className="mt-6 flex gap-3">
+          {editing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Edit Profile
+            </button>
           )}
         </div>
       </div>

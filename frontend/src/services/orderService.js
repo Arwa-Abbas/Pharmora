@@ -10,6 +10,10 @@ class OrderService {
     return api.get(`/api/orders/${userId}`);
   }
 
+  async cancelOrder(orderId, reason) {
+    return api.patch(`/api/orders/${orderId}/cancel`, { reason });
+  }
+
   async getOrdersWithoutPrescriptions(patientId, excludePrescriptionId = null) {
     let url = `/api/patient/${patientId}/orders-without-prescriptions`;
     if (excludePrescriptionId) {

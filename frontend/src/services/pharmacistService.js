@@ -17,6 +17,10 @@ class PharmacistService {
   async addToInventory(data) {
     return api.post('/api/pharmacist/add-to-inventory', data);
   }
+
+  async cancelStockRequest(requestId, reason) {
+    return api.patch(`/api/stock-requests/${requestId}/cancel`, { reason });
+  }
 }
 
 export default new PharmacistService();

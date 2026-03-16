@@ -38,7 +38,7 @@ function InventoryCard({ item, onUpdate, onDelete }) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1 text-gray-700">Reorder Level</label>
+            <label className="block text-xs font-medium mb-1 text-gray-700">Production Threshold</label>
             <input
               type="number"
               value={formData.reorder_level}
@@ -139,7 +139,7 @@ function InventoryCard({ item, onUpdate, onDelete }) {
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Reorder Level:</span>
+          <span className="text-gray-600">Production Threshold:</span>
           <span className="font-semibold">{item.reorder_level} units</span>
         </div>
         <div className="flex justify-between">
@@ -167,7 +167,7 @@ function InventoryCard({ item, onUpdate, onDelete }) {
       {isLowStock && (
         <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded flex items-center gap-2">
           <AlertCircle size={16} className="text-red-600" />
-          <span className="text-xs text-red-700 font-medium">Low stock - Reorder needed</span>
+          <span className="text-xs text-red-700 font-medium">Below production threshold — manufacture more</span>
         </div>
       )}
     </div>

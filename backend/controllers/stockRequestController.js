@@ -26,7 +26,8 @@ const checkInventory = async (req, res) => {
   try {
     const inventoryCheck = await pool.query(
       `SELECT * FROM supplier_inventory
-       WHERE supplier_id = $1 AND medicine_id = $2`,
+       WHERE supplier_id = (SELECT supplier_id FROM suppliers WHERE user_id = $1)
+       AND medicine_id = $2`,
       [supplier_id, medicine_id]
     );
 
@@ -129,6 +130,30 @@ const acceptRequest = async (req, res) => {
   }
 };
 
+const cancelRequest = async (req, res) => {
+  const { requestId } = req.params;
+  const { reason } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE stock_requests
+       SET status = 'Cancelled', rejection_reason = $1, updated_at = NOW()
+       WHERE request_id = $2 AND status = 'Pending'
+       RETURNING *`,
+      [reason || null, requestId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Request not found or not cancellable" });
+    }
+
+    res.json({ message: "Request cancelled" });
+  } catch (err) {
+    console.error("Error cancelling request:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 const rejectRequest = async (req, res) => {
   const { requestId } = req.params;
   const { reason } = req.body;
@@ -218,24 +243,13 @@ const deliverOrder = async (req, res) => {
       return res.status(404).json({ error: "Delivery record not found." });
     }
 
-    const reqData = await client.query(
-      `SELECT medicine_id, quantity_requested FROM stock_requests WHERE request_id = $1`,
-      [requestId]
-    );
-    const { medicine_id, quantity_requested } = reqData.rows[0];
-
-    await client.query(
-      `UPDATE medicines SET stock = stock + $1 WHERE medicine_id = $2`,
-      [quantity_requested, medicine_id]
-    );
-
     await client.query(
       `UPDATE stock_requests SET status = 'Completed', updated_at = NOW() WHERE request_id = $1`,
       [requestId]
     );
 
     await client.query('COMMIT');
-    res.json({ message: "Delivery completed! Pharmacy stock updated." });
+    res.json({ message: "Delivery completed! Pharmacist can now add to their inventory." });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error("Error delivering order:", err);
@@ -254,7 +268,7 @@ const addToInventory = async (req, res) => {
 
     const supplierInventory = await client.query(
       `SELECT selling_price, expiry_date FROM supplier_inventory
-       WHERE supplier_id = (SELECT supplier_id FROM suppliers WHERE user_id = $1) AND medicine_id = $2`,
+       WHERE supplier_id = $1 AND medicine_id = $2`,
       [supplier_id, medicine_id]
     );
 
@@ -269,9 +283,10 @@ const addToInventory = async (req, res) => {
       `UPDATE medicines
        SET stock = stock + $1,
            price = $2,
-           expiry_date = $3
+           expiry_date = $3,
+           supplier_id = (SELECT user_id FROM suppliers WHERE supplier_id = $5)
        WHERE medicine_id = $4`,
-      [quantity, selling_price, expiry_date, medicine_id]
+      [quantity, selling_price, expiry_date, medicine_id, supplier_id]
     );
 
     await client.query(
@@ -414,6 +429,7 @@ module.exports = {
   checkInventory,
   acceptRequest,
   rejectRequest,
+  cancelRequest,
   shipOrder,
   deliverOrder,
   addToInventory,

@@ -12,6 +12,7 @@ import StatsCard from "../../components/dashboard/StatsCard";
 import OrderCard from "../../components/dashboard/OrderCard";
 import PrescriptionCard from "../../components/dashboard/PrescriptionCard";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import ReasonModal from "../../components/common/ReasonModal";
 import {
   ShoppingCart,
   FileText,
@@ -66,6 +67,8 @@ function PatientDashboard() {
     cardHolder: "",
     paymentMethod: "credit_card"
   });
+
+  const [cancelingOrderId, setCancelingOrderId] = useState(null);
 
   const [showLinkPrescriptionModal, setShowLinkPrescriptionModal] = useState(false);
   const [selectedOrderForPrescription, setSelectedOrderForPrescription] = useState(null);
@@ -433,6 +436,19 @@ function PatientDashboard() {
     setShowPaymentModal(true);
   };
 
+  const handleCancelOrder = async (reason) => {
+    const orderId = cancelingOrderId;
+    setCancelingOrderId(null);
+    try {
+      await orderService.cancelOrder(orderId, reason);
+      showNotification("Order cancelled.", "success");
+      const ordersData = await orderService.getUserOrders(user.id);
+      setOrders(ordersData);
+    } catch (err) {
+      showNotification(err.message || "Failed to cancel order", "error");
+    }
+  };
+
   const initiateLinkPrescription = (order) => {
     setSelectedOrderForPrescription(order);
     setLinkPrescriptionFile(null);
@@ -754,6 +770,7 @@ function PatientDashboard() {
                         order={{ ...order, payment: orderPayment }}
                         onPay={initiatePayment}
                         onLinkPrescription={initiateLinkPrescription}
+                        onCancel={setCancelingOrderId}
                       />
                     );
                   })}
@@ -809,6 +826,17 @@ function PatientDashboard() {
           )}
         </div>
       </div>
+
+      {cancelingOrderId && (
+        <ReasonModal
+          title="Cancel Order"
+          placeholder="Please provide a reason for cancellation..."
+          confirmLabel="Cancel Order"
+          confirmColor="red"
+          onConfirm={handleCancelOrder}
+          onCancel={() => setCancelingOrderId(null)}
+        />
+      )}
 
       {showLinkPrescriptionModal && selectedOrderForPrescription && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

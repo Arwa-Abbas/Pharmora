@@ -121,7 +121,7 @@ router.get("/api/pharmacist/medicines", authenticateUser, async (req, res) => {
         m.image_url,
         s.company_name as supplier_name
        FROM medicines m
-       JOIN suppliers s ON m.supplier_id = s.user_id
+       LEFT JOIN suppliers s ON m.supplier_id = s.user_id
        ORDER BY m.name`
     );
     res.json(result.rows);
@@ -156,6 +156,27 @@ router.get("/api/pharmacist/:pharmacistId/delivered-requests", authenticateUser,
     res.json(result.rows);
   } catch (err) {
     console.error("Error fetching delivered requests:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/api/pharmacists/:userId", authenticateUser, async (req, res) => {
+  const { userId } = req.params;
+  const { pharmacy_name, license_number, phone, address } = req.body;
+  try {
+    await pool.query(
+      `UPDATE pharmacists SET pharmacy_name = COALESCE($1, pharmacy_name), pharmacy_license = COALESCE($2, pharmacy_license), updated_at = NOW()
+       WHERE user_id = $3`,
+      [pharmacy_name || null, license_number || null, userId]
+    );
+    await pool.query(
+      `UPDATE users SET phone = COALESCE($1, phone), address = COALESCE($2, address), updated_at = NOW()
+       WHERE user_id = $3`,
+      [phone || null, address || null, userId]
+    );
+    res.json({ message: "Profile updated" });
+  } catch (err) {
+    console.error("Error updating pharmacist profile:", err);
     res.status(500).json({ error: err.message });
   }
 });

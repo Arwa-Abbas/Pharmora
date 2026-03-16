@@ -3,18 +3,19 @@ import React from 'react';
 import { Truck, CheckCircle, Clock, MapPin } from 'lucide-react';
 import { formatDate, getDeliveryStatusColor } from '../../utils/formatters';
 
-function DeliveryCard({ delivery, onDeliver }) {
+function DeliveryCard({ delivery, onDeliver, onShip }) {
   const isDelivered = delivery.delivery_status === 'Delivered' || delivery.status === 'Completed';
   const isShipped = delivery.delivery_status === 'Shipped';
+  const isAccepted = !isDelivered && !isShipped;
 
   return (
     <div className={`bg-white rounded-lg shadow p-6 border-l-4 ${
-      isDelivered ? 'border-green-500' : isShipped ? 'border-blue-500' : 'border-gray-500'
+      isDelivered ? 'border-green-500' : isShipped ? 'border-blue-500' : 'border-yellow-500'
     }`}>
       <div className="flex justify-between items-start mb-4">
         <div className="flex-1">
           <h3 className="font-semibold text-lg">
-            {isDelivered ? 'Delivered' : isShipped ? 'In Transit' : 'Processing'} - Request #{delivery.request_id}
+            {isDelivered ? 'Delivered' : isShipped ? 'In Transit' : 'Accepted'} - Request #{delivery.request_id}
           </h3>
 
           <div className="mt-2 space-y-1">
@@ -58,17 +59,27 @@ function DeliveryCard({ delivery, onDeliver }) {
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${
             isDelivered ? 'bg-green-100 text-green-700' :
             isShipped ? 'bg-blue-100 text-blue-700' :
-            'bg-gray-100 text-gray-700'
+            'bg-yellow-100 text-yellow-700'
           }`}>
-            {isDelivered ? 'Delivered' : isShipped ? 'In Transit' : 'Processing'}
+            {isDelivered ? 'Delivered' : isShipped ? 'In Transit' : 'Accepted'}
           </span>
         </div>
       </div>
 
+      {isAccepted && onShip && (
+        <button
+          onClick={() => onShip(delivery.request_id)}
+          className="w-full mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+        >
+          <Truck size={20} />
+          Mark as Shipped
+        </button>
+      )}
+
       {isShipped && onDeliver && (
         <button
           onClick={() => onDeliver(delivery.request_id)}
-          className="w-full mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
+          className="w-full mt-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
         >
           <CheckCircle size={20} />
           Mark as Delivered

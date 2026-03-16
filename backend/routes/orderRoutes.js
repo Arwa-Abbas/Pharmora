@@ -9,6 +9,7 @@ const {
   updateOrderStatus,
   cancelOrder,
   shipOrder,
+  deliverOrder,
   getPharmacistOrders
 } = require('../controllers/orderController');
 
@@ -18,6 +19,7 @@ router.get("/api/patient/:patientId/orders-without-prescriptions", authenticateU
 router.patch("/api/orders/:orderId/status", authenticateUser, updateOrderStatus);
 router.patch("/api/orders/:orderId/cancel", authenticateUser, cancelOrder);
 router.patch("/api/orders/:orderId/ship", authenticateUser, shipOrder);
+router.patch("/api/orders/:orderId/deliver", authenticateUser, deliverOrder);
 router.get("/api/pharmacist/:pharmacistId/orders", authenticateUser, getPharmacistOrders);
 
 module.exports = router;

@@ -165,6 +165,7 @@ function Login() {
               placeholder="Password"
               value={formData.password}
               onChange={handleInputChange}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               className="login-input"
               disabled={loading}
             />

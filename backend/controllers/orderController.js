@@ -149,6 +149,7 @@ const cancelOrder = async (req, res) => {
 
 const shipOrder = async (req, res) => {
   const { orderId } = req.params;
+  const { tracking_info } = req.body;
 
   const client = await pool.connect();
   try {
@@ -167,7 +168,9 @@ const shipOrder = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    const insufficient = itemsResult.rows.filter(item => item.stock < item.quantity);
+    // Stock was already deducted when the order was placed (createOrder).
+    // Here we just verify current stock is not negative, then mark as shipped.
+    const insufficient = itemsResult.rows.filter(item => item.stock < 0);
     if (insufficient.length > 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({
@@ -180,16 +183,9 @@ const shipOrder = async (req, res) => {
       });
     }
 
-    for (const item of itemsResult.rows) {
-      await client.query(
-        `UPDATE medicines SET stock = stock - $1 WHERE medicine_id = $2`,
-        [item.quantity, item.medicine_id]
-      );
-    }
-
     const result = await client.query(
-      `UPDATE orders SET status = 'Shipped' WHERE order_id = $1 RETURNING *`,
-      [orderId]
+      `UPDATE orders SET status = 'Shipped', tracking_info = $2 WHERE order_id = $1 RETURNING *`,
+      [orderId, tracking_info || null]
     );
 
     await client.query('COMMIT');
@@ -203,11 +199,29 @@ const shipOrder = async (req, res) => {
   }
 };
 
+const deliverOrder = async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `UPDATE orders SET status = 'Delivered' WHERE order_id = $1 AND status = 'Shipped' RETURNING *`,
+      [orderId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found or not in Shipped status' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error delivering order:', err);
+    res.status(500).json({ error: 'Failed to deliver order' });
+  }
+};
+
 const getPharmacistOrders = async (req, res) => {
   const { pharmacistId } = req.params;
   try {
     const result = await pool.query(
-      `SELECT o.*,
+      `SELECT o.*, o.tracking_info,
               CONCAT(u.first_name, ' ', u.last_name) as patient_name,
               u.phone as patient_phone,
               p.prescription_id,
@@ -244,5 +258,6 @@ module.exports = {
   updateOrderStatus,
   cancelOrder,
   shipOrder,
+  deliverOrder,
   getPharmacistOrders
 };

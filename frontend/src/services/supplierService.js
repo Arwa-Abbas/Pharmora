@@ -10,8 +10,8 @@ class SupplierService {
     return api.put(`/api/stock-requests/${requestId}/accept`, {});
   }
 
-  async rejectRequest(requestId) {
-    return api.put(`/api/stock-requests/${requestId}/reject`, {});
+  async rejectRequest(requestId, reason) {
+    return api.put(`/api/stock-requests/${requestId}/reject`, { reason });
   }
 
   async shipOrder(requestId, trackingInfo = '') {

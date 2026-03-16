@@ -10,6 +10,7 @@ import RequestCard from "../../components/dashboard/RequestCard";
 import DeliveryCard from "../../components/dashboard/DeliveryCard";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import api from "../../services/api";
+import ReasonModal from "../../components/common/ReasonModal";
 import {
   Package,
   ShoppingCart,
@@ -46,6 +47,14 @@ function PharmacistDashboard() {
     completed_deliveries: 0,
     low_stock_medicines: 0
   });
+
+  const [cancelingOrderId, setCancelingOrderId] = useState(null);
+  const [cancelingRequestId, setCancelingRequestId] = useState(null);
+  const [shippingOrderId, setShippingOrderId] = useState(null);
+  const [shipTrackingInput, setShipTrackingInput] = useState("");
+  const [addInventoryRequest, setAddInventoryRequest] = useState(null);
+  const [supplierMedicines, setSupplierMedicines] = useState([]);
+  const [loadingSupplierMedicines, setLoadingSupplierMedicines] = useState(false);
 
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [selectedMedicine, setSelectedMedicine] = useState(null);
@@ -164,6 +173,7 @@ function PharmacistDashboard() {
       showNotification("Stock request sent successfully!", "success");
       setShowRequestForm(false);
       setSelectedMedicine(null);
+      setSupplierMedicines([]);
       setRequestData({
         supplier_id: "",
         medicine_id: "",
@@ -180,11 +190,13 @@ function PharmacistDashboard() {
     setLoading(false);
   };
 
-  const handleAddToInventory = async (request) => {
-    if (!window.confirm(`Add ${request.quantity_requested} units of ${request.medicine_name} to your pharmacy inventory?`)) {
-      return;
-    }
+  const handleAddToInventory = (request) => {
+    setAddInventoryRequest(request);
+  };
 
+  const confirmAddToInventory = async () => {
+    const request = addInventoryRequest;
+    setAddInventoryRequest(null);
     setLoading(true);
     try {
       await pharmacistService.addToInventory({
@@ -215,10 +227,17 @@ function PharmacistDashboard() {
     }
   };
 
-  const handleShipOrder = async (orderId) => {
+  const handleShipOrder = (orderId) => {
+    setShipTrackingInput("");
+    setShippingOrderId(orderId);
+  };
+
+  const confirmShipOrder = async () => {
+    const orderId = shippingOrderId;
+    setShippingOrderId(null);
     try {
-      await api.patch(`/api/orders/${orderId}/ship`, {});
-      showNotification("Order shipped! Stock updated.", "success");
+      await api.patch(`/api/orders/${orderId}/ship`, { tracking_info: shipTrackingInput.trim() });
+      showNotification("Order shipped!", "success");
       await refreshPatientOrders();
       const medicinesData = await userService.getPharmacistMedicines();
       setMedicines(medicinesData);
@@ -250,11 +269,35 @@ function PharmacistDashboard() {
 
   const handleDeliverOrder = async (orderId) => {
     try {
-      await api.patch(`/api/orders/${orderId}/status`, { status: 'Delivered' });
+      await api.patch(`/api/orders/${orderId}/deliver`, {});
       showNotification("Order marked as delivered!", "success");
       await refreshPatientOrders();
     } catch (err) {
-      showNotification(err.message || "Failed to update order", "error");
+      showNotification(err.message || "Failed to deliver order", "error");
+    }
+  };
+
+  const handleCancelOrder = async (reason) => {
+    const orderId = cancelingOrderId;
+    setCancelingOrderId(null);
+    try {
+      await api.patch(`/api/orders/${orderId}/cancel`, { reason });
+      showNotification("Order cancelled.", "success");
+      await refreshPatientOrders();
+    } catch (err) {
+      showNotification(err.message || "Failed to cancel order", "error");
+    }
+  };
+
+  const handleCancelRequest = async (reason) => {
+    const requestId = cancelingRequestId;
+    setCancelingRequestId(null);
+    try {
+      await pharmacistService.cancelStockRequest(requestId, reason);
+      showNotification("Stock request cancelled.", "success");
+      await refreshStockRequests();
+    } catch (err) {
+      showNotification(err.message || "Failed to cancel request", "error");
     }
   };
 
@@ -395,6 +438,16 @@ function PharmacistDashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab("profile")}
+            className={`w-full flex items-center gap-3 p-3 rounded-lg transition ${
+              activeTab === "profile" ? "bg-white text-teal-600" : "hover:bg-teal-500"
+            }`}
+          >
+            <User size={20} />
+            <span>My Profile</span>
+          </button>
+
+          <button
             onClick={() => navigate("/")}
             className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-teal-500 transition"
           >
@@ -422,18 +475,6 @@ function PharmacistDashboard() {
                 Welcome, {getWelcomeName()}!
               </h1>
               <p className="text-gray-600">Pharmacy Inventory Management</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setActiveTab("requests");
-                  setShowRequestForm(true);
-                }}
-                className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg hover:from-teal-600 hover:to-cyan-600 flex items-center gap-2"
-              >
-                <Plus size={20} />
-                Request Stock
-              </button>
             </div>
           </div>
 
@@ -545,11 +586,15 @@ function PharmacistDashboard() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Supplier:</span>
-                          <span className="font-semibold">{medicine.supplier_name}</span>
+                          <span className="font-semibold">
+                            {medicine.supplier_name ||
+                              suppliers.find(s => s.user_id === parseInt(medicine.supplier_id))?.company_name ||
+                              "—"}
+                          </span>
                         </div>
                       </div>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           setSelectedMedicine(medicine);
                           setRequestData({
                             supplier_id: medicine.supplier_id,
@@ -558,6 +603,12 @@ function PharmacistDashboard() {
                             notes: "",
                             pharmacy_name: pharmacistDetails?.pharmacy_name || "My Pharmacy"
                           });
+                          if (medicine.supplier_id) {
+                            try {
+                              const meds = await api.get(`/api/supplier/user/${medicine.supplier_id}/medicines`);
+                              setSupplierMedicines(meds);
+                            } catch (err) { /* ignore */ }
+                          }
                           setActiveTab("requests");
                           setShowRequestForm(true);
                         }}
@@ -586,12 +637,29 @@ function PharmacistDashboard() {
                   {stockRequests
                     .filter(request => request.status !== 'Completed')
                     .map((request) => (
-                      <RequestCard
-                        key={request.request_id}
-                        request={request}
-                        type="pharmacist"
-                        onAddToInventory={handleAddToInventory}
-                      />
+                      <div key={request.request_id}>
+                        <RequestCard
+                          request={request}
+                          type="pharmacist"
+                          onAddToInventory={handleAddToInventory}
+                        />
+                        {request.status === 'Rejected' && request.rejection_reason && (
+                          <div className="mt-1 px-4 py-2 bg-red-50 border border-red-200 rounded-b-lg text-sm text-red-700">
+                            <span className="font-medium">Rejection reason:</span> {request.rejection_reason}
+                          </div>
+                        )}
+                        {request.status === 'Pending' && (
+                          <div className="mt-1 flex justify-end">
+                            <button
+                              onClick={() => setCancelingRequestId(request.request_id)}
+                              className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <X size={14} />
+                              Cancel Request
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     ))}
                 </div>
               )}
@@ -777,6 +845,11 @@ function PharmacistDashboard() {
                               Mark as Shipped
                             </button>
                           )}
+                          {order.tracking_info && (
+                            <p className="text-sm text-gray-500 mb-2">
+                              Tracking: <span className="font-medium text-gray-700">{order.tracking_info}</span>
+                            </p>
+                          )}
                           {order.status === 'Shipped' && (
                             <button
                               onClick={() => handleDeliverOrder(order.order_id)}
@@ -796,13 +869,128 @@ function PharmacistDashboard() {
                               <CheckCircle size={16} /> Delivered
                             </p>
                           )}
+                          {order.status === 'Cancelled' && order.cancellation_reason && (
+                            <p className="text-sm text-red-600 italic">Reason: {order.cancellation_reason}</p>
+                          )}
                         </div>
+                        {!['Cancelled', 'Delivered', 'Shipped'].includes(order.status) && (
+                          <div className="mt-3">
+                            <button
+                              onClick={() => setCancelingOrderId(order.order_id)}
+                              className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <X size={16} />
+                              Cancel Order
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === "profile" && (
+            <PharmacistProfileTab user={user} pharmacistDetails={pharmacistDetails} showNotification={showNotification} />
+          )}
+
+          {addInventoryRequest && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Add to Pharmacy Inventory</h3>
+                    <button onClick={() => setAddInventoryRequest(null)} className="text-gray-400 hover:text-gray-600">
+                      <X size={22} />
+                    </button>
+                  </div>
+                  <p className="text-gray-700 text-sm mb-6">
+                    Add <span className="font-semibold">{addInventoryRequest.quantity_requested} units</span> of{" "}
+                    <span className="font-semibold">{addInventoryRequest.medicine_name}</span> to your pharmacy inventory?
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setAddInventoryRequest(null)}
+                      className="flex-1 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmAddToInventory}
+                      className="flex-1 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
+                    >
+                      Add to Inventory
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {shippingOrderId && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Mark as Shipped</h3>
+                    <button onClick={() => setShippingOrderId(null)} className="text-gray-400 hover:text-gray-600">
+                      <X size={22} />
+                    </button>
+                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tracking Number <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={shipTrackingInput}
+                    onChange={(e) => setShipTrackingInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && confirmShipOrder()}
+                    placeholder="e.g. TRK-123456"
+                    className="w-full p-3 border rounded-lg text-sm"
+                    autoFocus
+                  />
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      onClick={() => setShippingOrderId(null)}
+                      className="flex-1 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmShipOrder}
+                      className="flex-1 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Truck size={16} />
+                      Confirm Shipment
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {cancelingOrderId && (
+            <ReasonModal
+              title="Cancel Patient Order"
+              placeholder="Please provide a reason for cancellation..."
+              confirmLabel="Cancel Order"
+              confirmColor="red"
+              onConfirm={handleCancelOrder}
+              onCancel={() => setCancelingOrderId(null)}
+            />
+          )}
+
+          {cancelingRequestId && (
+            <ReasonModal
+              title="Cancel Stock Request"
+              placeholder="Please provide a reason for cancellation..."
+              confirmLabel="Cancel Request"
+              confirmColor="red"
+              onConfirm={handleCancelRequest}
+              onCancel={() => setCancelingRequestId(null)}
+            />
           )}
 
           {stockErrorItems.length > 0 && (
@@ -858,12 +1046,26 @@ function PharmacistDashboard() {
                       <label className="block text-sm font-medium mb-2">Supplier</label>
                       <select
                         value={requestData.supplier_id}
-                        onChange={(e) => setRequestData({ ...requestData, supplier_id: e.target.value })}
+                        onChange={async (e) => {
+                          const userId = e.target.value;
+                          setRequestData({ ...requestData, supplier_id: userId, medicine_id: "" });
+                          setSupplierMedicines([]);
+                          if (userId) {
+                            setLoadingSupplierMedicines(true);
+                            try {
+                              const meds = await api.get(`/api/supplier/user/${userId}/medicines`);
+                              setSupplierMedicines(meds);
+                            } catch (err) {
+                              showNotification("Failed to load supplier medicines", "error");
+                            }
+                            setLoadingSupplierMedicines(false);
+                          }
+                        }}
                         className="w-full p-3 border rounded-lg"
                       >
                         <option value="">Select Supplier</option>
                         {suppliers.map(supplier => (
-                          <option key={supplier.supplier_id} value={supplier.supplier_id}>
+                          <option key={supplier.supplier_id} value={supplier.user_id}>
                             {supplier.company_name}
                           </option>
                         ))}
@@ -878,11 +1080,14 @@ function PharmacistDashboard() {
                         value={requestData.medicine_id}
                         onChange={(e) => setRequestData({ ...requestData, medicine_id: e.target.value })}
                         className="w-full p-3 border rounded-lg"
+                        disabled={loadingSupplierMedicines}
                       >
-                        <option value="">Select Medicine</option>
-                        {getSupplierMedicines(requestData.supplier_id).map(medicine => (
+                        <option value="">
+                          {loadingSupplierMedicines ? "Loading..." : supplierMedicines.length === 0 ? "No medicines available" : "Select Medicine"}
+                        </option>
+                        {supplierMedicines.map(medicine => (
                           <option key={medicine.medicine_id} value={medicine.medicine_id}>
-                            {medicine.name} - Rs. {medicine.price}
+                            {medicine.medicine_name} - Rs. {medicine.selling_price} (Stock: {medicine.quantity_available})
                           </option>
                         ))}
                       </select>
@@ -892,7 +1097,11 @@ function PharmacistDashboard() {
                   {selectedMedicine && (
                     <div className="bg-teal-50 p-3 rounded-lg">
                       <p><strong>Medicine:</strong> {selectedMedicine.name}</p>
-                      <p><strong>Supplier:</strong> {selectedMedicine.supplier_name}</p>
+                      <p><strong>Supplier:</strong> {
+                        selectedMedicine.supplier_name ||
+                        suppliers.find(s => s.user_id === parseInt(selectedMedicine.supplier_id))?.company_name ||
+                        "Unknown Supplier"
+                      }</p>
                     </div>
                   )}
 
@@ -925,6 +1134,7 @@ function PharmacistDashboard() {
                     onClick={() => {
                       setShowRequestForm(false);
                       setSelectedMedicine(null);
+                      setSupplierMedicines([]);
                       setRequestData({
                         supplier_id: "",
                         medicine_id: "",
@@ -948,6 +1158,93 @@ function PharmacistDashboard() {
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PharmacistProfileTab({ user, pharmacistDetails, showNotification }) {
+  const [editing, setEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [form, setForm] = React.useState({
+    pharmacy_name: pharmacistDetails?.pharmacy_name || '',
+    license_number: pharmacistDetails?.license_number || '',
+    phone: pharmacistDetails?.phone || user?.phone || '',
+    address: pharmacistDetails?.address || user?.address || ''
+  });
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/api/pharmacists/${user.id}`, form);
+      showNotification("Profile updated!", "success");
+      setEditing(false);
+    } catch (err) {
+      showNotification(err.message || "Failed to update profile", "error");
+    }
+    setSaving(false);
+  };
+
+  const field = (label, key) => (
+    <div key={key}>
+      <label className="text-sm font-medium text-gray-600">{label}</label>
+      {editing ? (
+        <input
+          type="text"
+          value={form[key]}
+          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+          className="mt-1 w-full p-2 border rounded-lg"
+        />
+      ) : (
+        <p className="text-lg font-semibold">{form[key] || <span className="text-gray-400">—</span>}</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-6">My Profile</h2>
+      <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-600">Email</label>
+            <p className="text-lg font-semibold">{user?.email}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">Role</label>
+            <p className="text-lg font-semibold">{user?.role}</p>
+          </div>
+          {field("Pharmacy Name", "pharmacy_name")}
+          {field("License Number", "license_number")}
+          {field("Phone", "phone")}
+          {field("Address", "address")}
+        </div>
+        <div className="mt-6 flex gap-3">
+          {editing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-gray-400"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+            >
+              Edit Profile
+            </button>
           )}
         </div>
       </div>

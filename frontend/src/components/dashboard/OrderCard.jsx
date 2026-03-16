@@ -1,12 +1,13 @@
 // components/dashboard/OrderCard.jsx
 import React from 'react';
-import { Package, CreditCard, MapPin, Calendar, AlertCircle, CheckCircle, Link as LinkIcon, FileText } from 'lucide-react';
+import { Package, CreditCard, MapPin, Calendar, AlertCircle, CheckCircle, Link as LinkIcon, FileText, X } from 'lucide-react';
 import { formatDate, formatCurrency, getStatusColor } from '../../utils/formatters';
 
-function OrderCard({ order, onPay, onLinkPrescription }) {
+function OrderCard({ order, onPay, onLinkPrescription, onCancel }) {
   const hasPrescription = order.prescription_id;
   const hasPayment = order.payment;
   const isPending = order.status === 'Pending';
+  const canCancel = onCancel && !['Cancelled', 'Delivered', 'Shipped'].includes(order.status);
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -93,6 +94,12 @@ function OrderCard({ order, onPay, onLinkPrescription }) {
         </div>
       </div>
 
+      {order.status === 'Cancelled' && order.cancellation_reason && (
+        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-700"><span className="font-medium">Cancellation reason:</span> {order.cancellation_reason}</p>
+        </div>
+      )}
+
       {isPending && !hasPayment && (
         <div className="mt-4 flex gap-3">
           {!hasPrescription && (
@@ -117,6 +124,18 @@ function OrderCard({ order, onPay, onLinkPrescription }) {
           >
             <CreditCard size={18} />
             Proceed to Checkout
+          </button>
+        </div>
+      )}
+
+      {canCancel && (
+        <div className="mt-3">
+          <button
+            onClick={() => onCancel(order.order_id)}
+            className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 flex items-center gap-2"
+          >
+            <X size={16} />
+            Cancel Order
           </button>
         </div>
       )}

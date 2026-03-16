@@ -7,6 +7,7 @@ const {
   checkInventory,
   acceptRequest,
   rejectRequest,
+  cancelRequest,
   getPharmacistRequests,
   getSupplierRequests,
   shipOrder,
@@ -20,6 +21,7 @@ router.get("/api/pharmacist/:pharmacistId/stock-requests", authenticateUser, get
 router.get("/api/supplier/:supplierId/stock-requests", authenticateUser, getSupplierRequests);
 router.put("/api/stock-requests/:requestId/accept", authenticateUser, acceptRequest);
 router.put("/api/stock-requests/:requestId/reject", authenticateUser, rejectRequest);
+router.patch("/api/stock-requests/:requestId/cancel", authenticateUser, cancelRequest);
 router.put("/api/stock-requests/:requestId/ship", authenticateUser, shipOrder);
 router.put("/api/stock-requests/:requestId/deliver", authenticateUser, deliverOrder);
 router.post("/api/pharmacist/add-to-inventory", authenticateUser, addToInventory);
