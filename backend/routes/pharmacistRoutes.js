@@ -1,4 +1,4 @@
-// routes/pharmacistRoutes.js
+
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
@@ -106,6 +106,7 @@ router.get("/api/pharmacist/:pharmacistId/stats", authenticateUser, async (req, 
   }
 });
 
+
 router.get("/api/pharmacist/medicines", authenticateUser, async (req, res) => {
   try {
     const result = await pool.query(
@@ -119,9 +120,9 @@ router.get("/api/pharmacist/medicines", authenticateUser, async (req, res) => {
         m.stock,
         m.expiry_date,
         m.image_url,
-        s.company_name as supplier_name
+        COALESCE(s.company_name) as supplier_name
        FROM medicines m
-       LEFT JOIN suppliers s ON m.supplier_id = s.user_id
+       LEFT JOIN suppliers s ON m.supplier_id = s.supplier_id
        ORDER BY m.name`
     );
     res.json(result.rows);
@@ -163,21 +164,36 @@ router.get("/api/pharmacist/:pharmacistId/delivered-requests", authenticateUser,
 router.put("/api/pharmacists/:userId", authenticateUser, async (req, res) => {
   const { userId } = req.params;
   const { pharmacy_name, license_number, phone, address } = req.body;
+  
+  const client = await pool.connect();
+  
   try {
-    await pool.query(
-      `UPDATE pharmacists SET pharmacy_name = COALESCE($1, pharmacy_name), pharmacy_license = COALESCE($2, pharmacy_license), updated_at = NOW()
+    await client.query('BEGIN');
+
+    await client.query(
+      `UPDATE pharmacists 
+       SET pharmacy_name = COALESCE($1, pharmacy_name), 
+           pharmacy_license = COALESCE($2, pharmacy_license)
        WHERE user_id = $3`,
       [pharmacy_name || null, license_number || null, userId]
     );
-    await pool.query(
-      `UPDATE users SET phone = COALESCE($1, phone), address = COALESCE($2, address), updated_at = NOW()
+
+    await client.query(
+      `UPDATE users 
+       SET phone = COALESCE($1, phone), 
+           address = COALESCE($2, address)
        WHERE user_id = $3`,
       [phone || null, address || null, userId]
     );
-    res.json({ message: "Profile updated" });
+
+    await client.query('COMMIT');
+    res.json({ message: "Profile updated successfully" });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error("Error updating pharmacist profile:", err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 

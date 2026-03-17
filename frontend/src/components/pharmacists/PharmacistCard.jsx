@@ -1,4 +1,4 @@
-// components/pharmacists/PharmacistCard.jsx
+
 import React from 'react';
 import { FaPills, FaClinicMedical, FaPhone, FaEnvelope, FaMapMarkerAlt } from 'react-icons/fa';
 import { getFullName } from '../../utils/formatters';

@@ -1,4 +1,4 @@
-// hooks/useAuth.js
+
 import { useState, useEffect } from 'react';
 import authService from '../services/authService';
 import { useNotification } from '../contexts/NotificationContext';

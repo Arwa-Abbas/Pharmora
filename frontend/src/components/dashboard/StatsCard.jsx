@@ -1,4 +1,4 @@
-// components/dashboard/StatsCard.jsx
+
 import React from 'react';
 
 function StatsCard({ title, value, icon: Icon, color = 'blue', subtitle }) {

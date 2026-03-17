@@ -1,4 +1,4 @@
-// utils/constants.js
+
 export const ROLES = {
   PATIENT: 'Patient',
   DOCTOR: 'Doctor',

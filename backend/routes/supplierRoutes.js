@@ -1,4 +1,3 @@
-// routes/supplierRoutes.js
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
@@ -8,7 +7,10 @@ const {
   updateSupplierProfile,
   getSupplierInventory,
   getSupplierStats,
-  addToSupplierInventory
+  addToSupplierInventory,
+  addNewMedicineToInventory,  // ← ONLY ADD THIS LINE
+  updateInventoryItem,        // ← ONLY ADD THIS LINE
+  deleteInventoryItem         // ← ONLY ADD THIS LINE
 } = require('../controllers/supplierController');
 
 const { getSupplierRequests } = require('../controllers/stockRequestController');

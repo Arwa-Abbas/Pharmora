@@ -1,4 +1,4 @@
-// middleware/adminAuth.js
+
 const jwt = require('jsonwebtoken');
 
 const authenticateAdmin = (req, res, next) => {

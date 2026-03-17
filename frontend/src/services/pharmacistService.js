@@ -1,4 +1,4 @@
-// services/pharmacistService.js
+
 import api from './api';
 
 class PharmacistService {

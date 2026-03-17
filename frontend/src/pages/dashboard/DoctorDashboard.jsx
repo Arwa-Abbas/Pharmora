@@ -1,4 +1,4 @@
-// pages/dashboard/DoctorDashboard.jsx
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../../contexts/NotificationContext";
@@ -648,16 +648,44 @@ function DoctorDashboard() {
 function DoctorProfileTab({ user, doctorSpecialty, showNotification }) {
   const [editing, setEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [doctorDetails, setDoctorDetails] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
   const [form, setForm] = React.useState({
-    first_name: user?.firstName || '',
-    last_name: user?.lastName || '',
-    phone: user?.phone || '',
-    address: user?.address || '',
-    city: user?.city || '',
-    country: user?.country || '',
-    specialty: doctorSpecialty || '',
-    medical_license: user?.medical_license || ''
+    first_name: '',
+    last_name: '',
+    phone: '',
+    address: '',
+    city: '',
+    country: '',
+    specialty: '',
+    medical_license: ''
   });
+
+  React.useEffect(() => {
+    const fetchDoctorDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get(`/api/doctors/${user.id}`);
+        setDoctorDetails(response);
+        setForm({
+          first_name: response.first_name || '',
+          last_name: response.last_name || '',
+          phone: response.phone || '',
+          address: response.address || '',
+          city: response.city || '',
+          country: response.country || '',
+          specialty: response.specialty || doctorSpecialty || '',
+          medical_license: response.medical_license || ''
+        });
+      } catch (err) {
+        console.error("Error fetching doctor details:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchDoctorDetails();
+  }, [user.id, doctorSpecialty]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -686,6 +714,14 @@ function DoctorProfileTab({ user, doctorSpecialty, showNotification }) {
       )}
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-8">
+        <LoadingSpinner size="medium" color="blue" />
+      </div>
+    );
+  }
 
   return (
     <div>

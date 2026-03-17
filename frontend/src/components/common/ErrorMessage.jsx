@@ -1,4 +1,4 @@
-// components/common/ErrorMessage.jsx
+
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
 

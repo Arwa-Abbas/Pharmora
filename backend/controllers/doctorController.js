@@ -1,4 +1,4 @@
-// controllers/doctorController.js
+
 const { pool } = require('../config/database');
 
 const getAllDoctors = async (req, res) => {

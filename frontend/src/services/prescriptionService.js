@@ -1,4 +1,4 @@
-// services/prescriptionService.js
+
 import api from './api';
 
 class PrescriptionService {

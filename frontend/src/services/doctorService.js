@@ -1,4 +1,4 @@
-// services/doctorService.js
+
 import api from './api';
 
 class DoctorService {

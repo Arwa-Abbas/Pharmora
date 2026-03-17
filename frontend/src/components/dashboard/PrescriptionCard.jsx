@@ -1,4 +1,4 @@
-// components/dashboard/PrescriptionCard.jsx
+
 import React from 'react';
 import { FileText, UserCheck, Link as LinkIcon, Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { formatDate, getStatusColor } from '../../utils/formatters';

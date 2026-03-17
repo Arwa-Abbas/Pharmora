@@ -1,4 +1,3 @@
-// pages/dashboard/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../../contexts/NotificationContext";
@@ -42,6 +41,8 @@ function AdminDashboard() {
   const [editForm, setEditForm] = useState({});
   const [showAddUser, setShowAddUser] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -93,18 +94,29 @@ function AdminDashboard() {
     navigate("/login");
   };
 
-  const handleDeleteUser = async (userId, userName) => {
-    if (!window.confirm(`Are you sure you want to delete ${userName}?`)) {
-      return;
-    }
+  const confirmDelete = (userId, userName) => {
+    setUserToDelete({ id: userId, name: userName });
+    setShowDeleteConfirm(true);
+  };
 
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    
+    setShowDeleteConfirm(false);
     try {
-      await adminService.deleteUser(userId);
-      showNotification("User deleted successfully!", "success");
+      await adminService.deleteUser(userToDelete.id);
+      showNotification(`${userToDelete.name} deleted successfully!`, "success");
       loadData();
     } catch (err) {
       showNotification(err.message || "Failed to delete user", "error");
+    } finally {
+      setUserToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setUserToDelete(null);
   };
 
   const handleEditUser = (user) => {
@@ -219,6 +231,44 @@ function AdminDashboard() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && userToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900">Confirm Delete</h3>
+            </div>
+            
+            <p className="text-gray-600 mb-2">
+              Are you sure you want to delete <span className="font-semibold text-gray-900">{userToDelete.name}</span>?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              This action cannot be undone. All data associated with this user will be permanently removed.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteUser}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <Trash2 size={18} />
+                Delete User
+              </button>
+              <button
+                onClick={cancelDelete}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sidebar */}
       <div className="w-64 bg-gradient-to-b from-gray-800 to-gray-900 text-white flex flex-col">
         <div className="p-6 text-2xl font-bold border-b border-gray-700">
           Pharmora Admin
@@ -282,8 +332,10 @@ function AdminDashboard() {
         </div>
       </div>
 
+      {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-8">
+          {/* Header */}
           <div className="flex justify-between items-start mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -302,6 +354,7 @@ function AdminDashboard() {
             </div>
           </div>
 
+          {/* Dashboard Tab */}
           {activeTab === "dashboard" && (
             <div className="space-y-8">
               <h2 className="text-2xl font-bold">System Overview</h2>
@@ -377,6 +430,7 @@ function AdminDashboard() {
             </div>
           )}
 
+          {/* User Management Tab */}
           {activeTab === "users" && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
@@ -390,6 +444,7 @@ function AdminDashboard() {
                 </button>
               </div>
 
+              {/* Search */}
               <div className="bg-white rounded-lg shadow p-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -403,6 +458,7 @@ function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Add User Modal */}
               {showAddUser && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                   <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
@@ -490,7 +546,8 @@ function AdminDashboard() {
                   </div>
                 </div>
               )}
-
+              
+              {/* Users Table */}
               {filteredUsers.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-lg shadow">
                   <User size={64} className="mx-auto text-gray-400 mb-4" />
@@ -594,7 +651,7 @@ function AdminDashboard() {
                                       <Edit size={16} />
                                     </button>
                                     <button
-                                      onClick={() => handleDeleteUser(user.user_id, user.name)}
+                                      onClick={() => confirmDelete(user.user_id, user.name)}
                                       className="p-1 bg-red-600 text-white rounded hover:bg-red-700"
                                     >
                                       <Trash2 size={16} />
@@ -613,10 +670,11 @@ function AdminDashboard() {
             </div>
           )}
 
+          {/* Reports Tab */}
           {activeTab === "reports" && (
             <div className="space-y-8">
               <h2 className="text-2xl font-bold">Reports & Analytics</h2>
-
+              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="p-6 bg-white rounded-lg shadow border-l-4 border-green-500">
                   <ShoppingCart className="h-8 w-8 text-green-500 mb-4" />

@@ -1,4 +1,4 @@
-// pages/dashboard/PatientDashboard.jsx
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../../contexts/NotificationContext";

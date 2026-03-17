@@ -1,4 +1,4 @@
-// components/dashboard/InventoryCard.jsx
+
 import React, { useState } from 'react';
 import { Edit, Save, X, AlertCircle, Package } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';

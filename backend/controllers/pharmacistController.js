@@ -1,4 +1,3 @@
-// controllers/pharmacistController.js
 const { pool } = require('../config/database');
 
 const getAllPharmacists = async (req, res) => {
@@ -63,8 +62,10 @@ const getPharmacistById = async (req, res) => {
 const updatePharmacistProfile = async (req, res) => {
   const { pharmacistId } = req.params;
   const { 
-    first_name, last_name, phone, address, city, country,
-    pharmacy_name, pharmacy_license 
+    pharmacy_name, 
+    pharmacy_license, 
+    phone, 
+    address 
   } = req.body;
   
   const client = await pool.connect();
@@ -72,17 +73,6 @@ const updatePharmacistProfile = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    await client.query(
-      `UPDATE users 
-       SET first_name = COALESCE($1, first_name),
-           last_name = COALESCE($2, last_name),
-           phone = COALESCE($3, phone),
-           address = COALESCE($4, address),
-           city = COALESCE($5, city),
-           country = COALESCE($6, country)
-       WHERE user_id = $7 AND role = 'Pharmacist'`,
-      [first_name, last_name, phone, address, city, country, pharmacistId]
-    );
 
     await client.query(
       `UPDATE pharmacists 
@@ -90,6 +80,15 @@ const updatePharmacistProfile = async (req, res) => {
            pharmacy_license = COALESCE($2, pharmacy_license)
        WHERE user_id = $3`,
       [pharmacy_name, pharmacy_license, pharmacistId]
+    );
+
+ 
+    await client.query(
+      `UPDATE users 
+       SET phone = COALESCE($1, phone),
+           address = COALESCE($2, address)
+       WHERE user_id = $3 AND role = 'Pharmacist'`,
+      [phone, address, pharmacistId]
     );
 
     await client.query('COMMIT');

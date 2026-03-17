@@ -1,4 +1,4 @@
-// hooks/useMedicines.js
+
 import { useState, useEffect } from 'react';
 import medicineService from '../services/medicineService';
 

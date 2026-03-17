@@ -1,4 +1,4 @@
-// components/common/LoadingSpinner.jsx
+
 import React from 'react';
 
 function LoadingSpinner({ size = 'medium', color = 'teal' }) {

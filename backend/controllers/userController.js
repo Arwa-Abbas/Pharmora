@@ -1,4 +1,4 @@
-// controllers/userController.js
+
 const { pool } = require('../config/database');
 
 const getAllUsers = async (req, res) => {

@@ -1,4 +1,4 @@
-// components/doctors/DoctorCard.jsx
+
 import React from 'react';
 import { getFullName } from '../../utils/formatters';
 

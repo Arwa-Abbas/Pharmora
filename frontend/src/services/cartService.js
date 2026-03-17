@@ -1,4 +1,4 @@
-// services/cartService.js
+
 import api from './api';
 
 class CartService {

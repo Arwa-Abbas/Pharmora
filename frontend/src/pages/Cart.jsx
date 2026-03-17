@@ -1,4 +1,4 @@
-// pages/Cart.jsx
+
 import React from "react";
 import { useCart } from "../hooks/useCart";
 import { useNotification } from "../contexts/NotificationContext";

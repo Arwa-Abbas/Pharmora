@@ -1,9 +1,7 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { FiTruck, FiUserCheck, FiHeart, FiShield, FiClock, FiMail, FiPhone, FiMapPin, FiPackage, FiAward, FiArrowRight } from "react-icons/fi";
 import "../styles/home.css";
-
 
 function CountUp({ target, suffix = "", duration = 1800 }) {
   const [count, setCount] = useState(0);
@@ -41,38 +39,21 @@ function MedicineBottle({ scrollY }) {
   const floatY = Math.sin(Date.now() / 1000) * 5;
 
   return (
-    <div
-      className="bottle-wrapper"
-      style={{ transform: `rotateY(${rotation}deg) translateY(${floatY}px)` }}
-    >
+    <div className="bottle-wrapper" style={{ transform: `rotateY(${rotation}deg) translateY(${floatY}px)` }}>
       <svg viewBox="0 0 120 220" xmlns="http://www.w3.org/2000/svg" className="bottle-svg">
-        {/* Cap */}
         <rect x="38" y="8" width="44" height="28" rx="8" fill="#0e7490" />
         <rect x="34" y="24" width="52" height="12" rx="4" fill="#155e75" />
-
-        {/* Bottle body */}
         <rect x="24" y="36" width="72" height="160" rx="16" fill="url(#bottleGrad)" />
-
-        {/* Shine */}
         <rect x="30" y="46" width="12" height="80" rx="6" fill="white" opacity="0.18" />
-
-        {/* Label background */}
         <rect x="28" y="80" width="64" height="80" rx="8" fill="white" opacity="0.95" />
-
-        {/* Label cross */}
         <rect x="54" y="90" width="12" height="36" rx="3" fill="#0891b2" />
         <rect x="44" y="100" width="32" height="12" rx="3" fill="#0891b2" />
-
-        {/* Label text lines */}
         <rect x="34" y="135" width="52" height="4" rx="2" fill="#94a3b8" />
         <rect x="40" y="143" width="40" height="3" rx="1.5" fill="#cbd5e1" />
         <rect x="44" y="150" width="32" height="3" rx="1.5" fill="#cbd5e1" />
-
-        {/* Pills inside (bottom) */}
         <ellipse cx="52" cy="175" rx="8" ry="5" fill="#22d3ee" opacity="0.5" />
         <ellipse cx="70" cy="180" rx="7" ry="4" fill="#0891b2" opacity="0.4" />
         <ellipse cx="60" cy="185" rx="6" ry="4" fill="#14b8a6" opacity="0.5" />
-
         <defs>
           <linearGradient id="bottleGrad" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#cffafe" />
@@ -81,14 +62,11 @@ function MedicineBottle({ scrollY }) {
           </linearGradient>
         </defs>
       </svg>
-
-      {/* Glow ring */}
       <div className="bottle-glow" />
     </div>
   );
 }
 
-/* ─── Animated bottle that responds to scroll ────────────── */
 function ScrollBottle() {
   const [scrollY, setScrollY] = useState(0);
   const [tick, setTick] = useState(0);
@@ -99,7 +77,6 @@ function ScrollBottle() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Float animation loop
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 50);
     return () => clearInterval(id);
@@ -117,9 +94,6 @@ function ScrollBottle() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   HOME
-═══════════════════════════════════════════════════════════ */
 function Home() {
   const [scrollY, setScrollY] = useState(0);
 
@@ -131,26 +105,17 @@ function Home() {
 
   return (
     <div className="ph-root">
-
-      {/* ── FLOATING BOTTLE (persists across sections) ──── */}
       <div className="floating-bottle-fixed">
         <ScrollBottle />
       </div>
 
-      {/* ══════════════════════════════════════════════════
-          HERO
-      ══════════════════════════════════════════════════ */}
       <section className="ph-hero">
-        {/* Background mesh blobs */}
         <div className="ph-hero-blob ph-hero-blob--1" />
         <div className="ph-hero-blob ph-hero-blob--2" />
         <div className="ph-hero-blob ph-hero-blob--3" />
-
-        {/* Grid noise texture */}
         <div className="ph-hero-grid" />
 
         <div className="ph-container ph-hero-inner">
-          {/* Left copy */}
           <div className="ph-hero-copy">
             <span className="ph-pill-tag">Your Digital Pharmacy</span>
 
@@ -177,9 +142,8 @@ function Home() {
               </Link>
             </div>
 
-            {/* Trust badges */}
             <div className="ph-trust-row">
-              {["FDA Certified", "256-bit SSL", "24/7 Support"].map((t) => (
+              {["FDA Certified", "Licensed Pharmacy", "24/7 Support"].map((t) => (
                 <span key={t} className="ph-trust-badge">
                   <span className="ph-trust-dot" />
                   {t}
@@ -188,14 +152,12 @@ function Home() {
             </div>
           </div>
 
-          {/* Right image + floating cards */}
           <div className="ph-hero-visual">
             <div className="ph-hero-img-wrap">
               <img src="/images/pharmacy.jpg" alt="Pharmacy" className="ph-hero-img" />
               <div className="ph-hero-img-overlay" />
             </div>
 
-            {/* Floating card – Revenue Growth */}
             <div className="ph-float-card ph-float-card--tl ph-anim-float" style={{ animationDelay: "0s" }}>
               <p className="ph-fc-label">Revenue Growth</p>
               <div className="ph-fc-bars">
@@ -206,7 +168,6 @@ function Home() {
               <p className="ph-fc-sub">Daily</p>
             </div>
 
-            {/* Floating card – Data Analytics */}
             <div className="ph-float-card ph-float-card--tr ph-anim-float" style={{ animationDelay: "0.8s" }}>
               <p className="ph-fc-label">Data Analytics</p>
               <div className="ph-fc-analytics-row">
@@ -225,7 +186,6 @@ function Home() {
               </svg>
             </div>
 
-            {/* Floating card – Sales Stats */}
             <div className="ph-float-card ph-float-card--br ph-anim-float" style={{ animationDelay: "1.4s" }}>
               <p className="ph-fc-label">Sales Stats</p>
               <div className="ph-fc-donut-row">
@@ -244,9 +204,6 @@ function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════
-          HOW IT WORKS
-      ══════════════════════════════════════════════════ */}
       <section className="ph-section ph-section--white">
         <div className="ph-container ph-text-center">
           <span className="ph-pill-tag ph-pill-tag--teal">How It Works</span>
@@ -310,9 +267,6 @@ function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════
-          WHY CHOOSE US
-      ══════════════════════════════════════════════════ */}
       <section className="ph-section ph-section--slate">
         <div className="ph-container ph-why-grid">
           <div className="ph-why-visual">
@@ -328,7 +282,7 @@ function Home() {
           <div className="ph-why-content">
             <span className="ph-pill-tag">Why Pharmora</span>
             <h2 className="ph-section-title ph-section-title--left">
-              Built for Trust &amp; Reliability
+              Built for Trust & Reliability
             </h2>
 
             <div className="ph-why-features">
@@ -350,9 +304,6 @@ function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════
-          CTA BANNER
-      ══════════════════════════════════════════════════ */}
       <section className="ph-cta">
         <div className="ph-cta-blob ph-cta-blob--1" />
         <div className="ph-cta-blob ph-cta-blob--2" />
@@ -372,9 +323,6 @@ function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════
-          SERVICES
-      ══════════════════════════════════════════════════ */}
       <section className="ph-section ph-section--white">
         <div className="ph-container ph-text-center">
           <span className="ph-pill-tag ph-pill-tag--teal">What We Offer</span>
@@ -398,9 +346,6 @@ function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════
-          STATS
-      ══════════════════════════════════════════════════ */}
       <section className="ph-section ph-section--dark-stats">
         <div className="ph-stats-bg-rings" />
         <div className="ph-container">
@@ -429,9 +374,6 @@ function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════
-          FOOTER
-      ══════════════════════════════════════════════════ */}
       <footer className="ph-footer">
         <div className="ph-footer-top-line" />
         <div className="ph-container ph-footer-grid">

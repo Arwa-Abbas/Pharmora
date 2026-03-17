@@ -1,4 +1,4 @@
-// utils/formatters.js
+
 export const getFullName = (user) => {
   if (!user) return '';
   

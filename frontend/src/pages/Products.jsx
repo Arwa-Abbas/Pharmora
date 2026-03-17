@@ -1,4 +1,4 @@
-// pages/Products.jsx
+
 import React, { useEffect, useState } from "react";
 import { ShoppingCart, CheckCircle } from "lucide-react";
 import { useCart } from "../hooks/useCart";

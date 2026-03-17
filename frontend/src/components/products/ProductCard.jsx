@@ -1,4 +1,4 @@
-// components/products/ProductCard.jsx
+
 import React from 'react';
 import { ShoppingCart, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';

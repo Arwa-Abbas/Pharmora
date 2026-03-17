@@ -1,4 +1,4 @@
-// components/dashboard/OrderCard.jsx
+
 import React from 'react';
 import { Package, CreditCard, MapPin, Calendar, AlertCircle, CheckCircle, Link as LinkIcon, FileText, X } from 'lucide-react';
 import { formatDate, formatCurrency, getStatusColor } from '../../utils/formatters';

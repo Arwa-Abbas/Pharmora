@@ -1,4 +1,4 @@
-// hooks/useCart.js
+
 import { useState, useEffect } from 'react';
 import cartService from '../services/cartService';
 import { useNotification } from '../contexts/NotificationContext';

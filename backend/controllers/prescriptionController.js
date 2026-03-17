@@ -1,4 +1,4 @@
-// controllers/prescriptionController.js
+
 const { pool } = require('../config/database');
 
 const uploadPrescription = async (req, res) => {

@@ -1,4 +1,4 @@
-// controllers/orderController.js
+
 const { pool } = require('../config/database');
 
 const createOrder = async (req, res) => {

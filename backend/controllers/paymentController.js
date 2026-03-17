@@ -1,4 +1,4 @@
-// controllers/paymentController.js
+
 const { pool } = require('../config/database');
 
 const getUserPayments = async (req, res) => {

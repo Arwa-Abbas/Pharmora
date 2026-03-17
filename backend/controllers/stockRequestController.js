@@ -1,4 +1,4 @@
-// controllers/stockRequestController.js
+
 const { pool } = require('../config/database');
 
 const createStockRequest = async (req, res) => {

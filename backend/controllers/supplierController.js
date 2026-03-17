@@ -1,4 +1,3 @@
-// controllers/supplierController.js
 const { pool } = require('../config/database');
 
 const getAllSuppliers = async (req, res) => {
@@ -139,16 +138,60 @@ const getSupplierInventory = async (req, res) => {
   try {
     const { supplierId } = req.params;
 
-    const result = await pool.query(
-      `SELECT si.*, m.name as medicine_name, m.category, m.description, m.image_url
-       FROM supplier_inventory si
-       JOIN medicines m ON si.medicine_id = m.medicine_id
-       WHERE si.supplier_id = $1
-       ORDER BY m.name`,
+    console.log("Fetching inventory for supplier:", supplierId);
+
+    // SIMPLE QUERY - Get ALL medicines for this supplier
+    const medicines = await pool.query(
+      `SELECT 
+        medicine_id,
+        name as medicine_name,
+        category,
+        description,
+        price,
+        stock,
+        expiry_date,
+        image_url
+       FROM medicines
+       WHERE supplier_id = $1
+       ORDER BY name`,
       [supplierId]
     );
 
-    res.json(result.rows);
+    console.log(`Found ${medicines.rows.length} medicines in medicines table`);
+
+    // Get inventory data
+    const inventory = await pool.query(
+      `SELECT * FROM supplier_inventory WHERE supplier_id = $1`,
+      [supplierId]
+    );
+
+    // Create a map of inventory data
+    const inventoryMap = {};
+    inventory.rows.forEach(item => {
+      inventoryMap[item.medicine_id] = item;
+    });
+
+    // Combine the data
+    const result = medicines.rows.map(medicine => {
+      const inv = inventoryMap[medicine.medicine_id];
+      return {
+        inventory_id: inv ? inv.inventory_id : 0,
+        medicine_id: medicine.medicine_id,
+        medicine_name: medicine.medicine_name,
+        category: medicine.category,
+        description: medicine.description,
+        image_url: medicine.image_url,
+        quantity_available: inv ? inv.quantity_available : 0,
+        reorder_level: inv ? inv.reorder_level : 20,
+        purchase_price: inv ? parseFloat(inv.purchase_price) : parseFloat(medicine.price),
+        selling_price: inv ? parseFloat(inv.selling_price) : parseFloat(medicine.price),
+        expiry_date: inv ? inv.expiry_date : medicine.expiry_date
+      };
+    });
+
+    console.log(`Sending ${result.length} items to frontend`);
+    res.json(result);
+
   } catch (err) {
     console.error("Error fetching supplier inventory:", err);
     res.status(500).json({ error: err.message });
@@ -194,33 +237,131 @@ const getSupplierStats = async (req, res) => {
   }
 };
 
+// ✅ FIXED - Now updates BOTH tables
 const addToSupplierInventory = async (req, res) => {
   try {
     const { supplierId } = req.params;
     const { medicine_id, quantity_available, reorder_level, purchase_price, selling_price, expiry_date } = req.body;
 
-    const existing = await pool.query(
-      `SELECT * FROM supplier_inventory
-       WHERE supplier_id = $1 AND medicine_id = $2`,
-      [supplierId, medicine_id]
-    );
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
 
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ error: "Medicine already exists in inventory" });
+      // Check if already in inventory
+      const existing = await client.query(
+        `SELECT * FROM supplier_inventory
+         WHERE supplier_id = $1 AND medicine_id = $2`,
+        [supplierId, medicine_id]
+      );
+
+      if (existing.rows.length > 0) {
+        // Update existing inventory
+        await client.query(
+          `UPDATE supplier_inventory
+           SET quantity_available = quantity_available + $1,
+               reorder_level = COALESCE($2, reorder_level),
+               purchase_price = COALESCE($3, purchase_price),
+               selling_price = COALESCE($4, selling_price),
+               expiry_date = COALESCE($5, expiry_date),
+               updated_at = NOW()
+           WHERE supplier_id = $6 AND medicine_id = $7`,
+          [quantity_available, reorder_level, purchase_price, selling_price, expiry_date, supplierId, medicine_id]
+        );
+      } else {
+        // Insert new inventory
+        await client.query(
+          `INSERT INTO supplier_inventory
+           (supplier_id, medicine_id, quantity_available, reorder_level, purchase_price, selling_price, expiry_date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [supplierId, medicine_id, quantity_available, reorder_level || 20, purchase_price || 0, selling_price, expiry_date]
+        );
+      }
+
+      // Update medicines table
+      await client.query(
+        `UPDATE medicines
+         SET stock = stock + $1,
+             price = COALESCE($2, price),
+             expiry_date = COALESCE($3, expiry_date),
+             updated_at = NOW()
+         WHERE medicine_id = $4`,
+        [quantity_available, selling_price, expiry_date, medicine_id]
+      );
+
+      await client.query('COMMIT');
+      
+      // Return success
+      res.status(201).json({ 
+        success: true, 
+        message: "Medicine added to inventory successfully" 
+      });
+
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    const result = await pool.query(
-      `INSERT INTO supplier_inventory
-       (supplier_id, medicine_id, quantity_available, reorder_level, purchase_price, selling_price, expiry_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [supplierId, medicine_id, quantity_available, reorder_level || 20, purchase_price || 0, selling_price, expiry_date]
-    );
-
-    res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("Error adding to inventory:", err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// ✅ NEW - Add completely new medicine
+const addNewMedicineToInventory = async (req, res) => {
+  const { supplierId } = req.params;
+  const { 
+    medicine_name, 
+    category, 
+    description, 
+    quantity_available, 
+    reorder_level, 
+    purchase_price, 
+    selling_price, 
+    expiry_date, 
+    image_url 
+  } = req.body;
+
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+
+    // Insert into medicines
+    const newMedicine = await client.query(
+      `INSERT INTO medicines 
+       (supplier_id, name, category, description, price, stock, expiry_date, image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING medicine_id`,
+      [supplierId, medicine_name, category, description, selling_price, quantity_available, expiry_date, image_url]
+    );
+    
+    const medicineId = newMedicine.rows[0].medicine_id;
+
+    // Insert into supplier_inventory
+    await client.query(
+      `INSERT INTO supplier_inventory 
+       (supplier_id, medicine_id, quantity_available, reorder_level, purchase_price, selling_price, expiry_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [supplierId, medicineId, quantity_available, reorder_level || 20, purchase_price || 0, selling_price, expiry_date]
+    );
+
+    await client.query('COMMIT');
+    
+    res.status(201).json({ 
+      success: true, 
+      message: "New medicine added successfully",
+      medicine_id: medicineId 
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Error adding new medicine:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };
 
@@ -229,24 +370,57 @@ const updateInventoryItem = async (req, res) => {
     const { inventoryId } = req.params;
     const { quantity_available, reorder_level, purchase_price, selling_price, expiry_date } = req.body;
 
-    const result = await pool.query(
-      `UPDATE supplier_inventory
-       SET quantity_available = $1,
-           reorder_level = $2,
-           purchase_price = $3,
-           selling_price = $4,
-           expiry_date = $5,
-           updated_at = NOW()
-       WHERE inventory_id = $6
-       RETURNING *`,
-      [quantity_available, reorder_level, purchase_price, selling_price, expiry_date, inventoryId]
-    );
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Inventory item not found" });
+      // Get medicine_id
+      const inventoryItem = await client.query(
+        `SELECT medicine_id, supplier_id FROM supplier_inventory WHERE inventory_id = $1`,
+        [inventoryId]
+      );
+
+      if (inventoryItem.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: "Inventory item not found" });
+      }
+
+      const { medicine_id } = inventoryItem.rows[0];
+
+      // Update supplier_inventory
+      await client.query(
+        `UPDATE supplier_inventory
+         SET quantity_available = $1,
+             reorder_level = $2,
+             purchase_price = $3,
+             selling_price = $4,
+             expiry_date = $5,
+             updated_at = NOW()
+         WHERE inventory_id = $6`,
+        [quantity_available, reorder_level, purchase_price, selling_price, expiry_date, inventoryId]
+      );
+
+      // Update medicines
+      await client.query(
+        `UPDATE medicines
+         SET stock = $1,
+             price = $2,
+             expiry_date = $3,
+             updated_at = NOW()
+         WHERE medicine_id = $4`,
+        [quantity_available, selling_price, expiry_date, medicine_id]
+      );
+
+      await client.query('COMMIT');
+      res.json({ success: true, message: "Inventory updated successfully" });
+
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    res.json(result.rows[0]);
   } catch (err) {
     console.error("Error updating inventory:", err);
     res.status(500).json({ error: err.message });
@@ -280,6 +454,7 @@ module.exports = {
   getSupplierInventory,
   getSupplierStats,
   addToSupplierInventory,
+  addNewMedicineToInventory,
   updateInventoryItem,
   deleteInventoryItem
 };

@@ -1,4 +1,4 @@
-// pages/Suppliers.jsx
+
 import React, { useEffect, useState } from "react";
 import { FiMail, FiPhone, FiMapPin, FiSearch, FiBox } from "react-icons/fi";
 import userService from "../services/userService";

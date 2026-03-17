@@ -1,4 +1,4 @@
-// components/dashboard/DeliveryCard.jsx
+
 import React from 'react';
 import { Truck, CheckCircle, Clock, MapPin } from 'lucide-react';
 import { formatDate, getDeliveryStatusColor } from '../../utils/formatters';

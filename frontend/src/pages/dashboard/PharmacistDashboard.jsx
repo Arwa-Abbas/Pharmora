@@ -1,4 +1,3 @@
-// pages/dashboard/PharmacistDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../../contexts/NotificationContext";
@@ -25,7 +24,9 @@ import {
   X,
   ClipboardList,
   CheckCircle,
-  Download
+  Download,
+  Edit,
+  Save
 } from "lucide-react";
 
 function PharmacistDashboard() {
@@ -67,6 +68,16 @@ function PharmacistDashboard() {
     pharmacy_name: ""
   });
 
+  // Profile edit state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    pharmacy_name: "",
+    pharmacy_license: "",
+    phone: "",
+    address: ""
+  });
+
   useEffect(() => {
     if (user === undefined || user === null) {
       return;
@@ -87,49 +98,43 @@ function PharmacistDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      try {
-        const pharmacistData = await userService.getPharmacistByUserId(user.id);
-        setPharmacistDetails(pharmacistData);
-      } catch (err) {
-        console.error("Error fetching pharmacist details:", err);
-      }
+      const pharmacistData = await userService.getPharmacistByUserId(user.id);
+      setPharmacistDetails(pharmacistData);
+      
+      setProfileForm({
+        pharmacy_name: pharmacistData?.pharmacy_name || "",
+        pharmacy_license: pharmacistData?.pharmacy_license || "",
+        phone: pharmacistData?.phone || user?.phone || "",
+        address: pharmacistData?.address || user?.address || ""
+      });
 
-      try {
-        const medicinesData = await userService.getPharmacistMedicines();
-        setMedicines(medicinesData);
-      } catch (err) {
-        console.error("Error fetching medicines:", err);
-      }
+      const suppliersData = await userService.getAllSuppliers();
+      setSuppliers(suppliersData);
 
-      try {
-        const suppliersData = await userService.getAllSuppliers();
-        setSuppliers(suppliersData);
-      } catch (err) {
-        console.error("Error fetching suppliers:", err);
-      }
+      const medicinesData = await userService.getPharmacistMedicines();
+      
+      const enrichedMedicines = medicinesData.map(medicine => {
+        const supplier = suppliersData.find(s => 
+          s.user_id === parseInt(medicine.supplier_id) || 
+          s.supplier_id === parseInt(medicine.supplier_id)
+        );
+        return {
+          ...medicine,
+          supplier_name: supplier?.company_name || medicine.supplier_name || `Supplier #${medicine.supplier_id}`,
+          supplier_company: supplier?.company_name || "Unknown Supplier"
+        };
+      });
+      
+      setMedicines(enrichedMedicines);
 
-      try {
-        const requestsData = await pharmacistService.getStockRequests(user.id);
-        setStockRequests(requestsData);
-      } catch (err) {
-        console.error("Error fetching stock requests:", err);
-        setStockRequests([]);
-      }
+      const requestsData = await pharmacistService.getStockRequests(user.id);
+      setStockRequests(requestsData);
 
-      try {
-        const ordersData = await api.get(`/api/pharmacist/${user.id}/orders`);
-        setPatientOrders(ordersData);
-      } catch (err) {
-        console.error("Error fetching patient orders:", err);
-        setPatientOrders([]);
-      }
+      const ordersData = await api.get(`/api/pharmacist/${user.id}/orders`);
+      setPatientOrders(ordersData);
 
-      try {
-        const statsData = await userService.getPharmacistStats(user.id);
-        setStats(statsData);
-      } catch (err) {
-        console.error("Error fetching stats:", err);
-      }
+      const statsData = await userService.getPharmacistStats(user.id);
+      setStats(statsData);
 
       showNotification("Dashboard loaded successfully", "success");
     } catch (err) {
@@ -137,6 +142,27 @@ function PharmacistDashboard() {
       showNotification("Some features may be limited", "warning");
     }
     setLoading(false);
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await api.put(`/api/pharmacists/${user.id}`, profileForm);
+      
+      setPharmacistDetails({
+        ...pharmacistDetails,
+        pharmacy_name: profileForm.pharmacy_name,
+        pharmacy_license: profileForm.pharmacy_license,
+        phone: profileForm.phone,
+        address: profileForm.address
+      });
+      
+      showNotification("Profile updated successfully!", "success");
+      setIsEditingProfile(false);
+    } catch (err) {
+      showNotification(err.message || "Failed to update profile", "error");
+    }
+    setSavingProfile(false);
   };
 
   const refreshStockRequests = async () => {
@@ -210,7 +236,20 @@ function PharmacistDashboard() {
       await refreshStockRequests();
 
       const medicinesData = await userService.getPharmacistMedicines();
-      setMedicines(medicinesData);
+      
+      const enrichedMedicines = medicinesData.map(medicine => {
+        const supplier = suppliers.find(s => 
+          s.user_id === parseInt(medicine.supplier_id) || 
+          s.supplier_id === parseInt(medicine.supplier_id)
+        );
+        return {
+          ...medicine,
+          supplier_name: supplier?.company_name || medicine.supplier_name || `Supplier #${medicine.supplier_id}`,
+          supplier_company: supplier?.company_name || "Unknown Supplier"
+        };
+      });
+      
+      setMedicines(enrichedMedicines);
 
     } catch (err) {
       showNotification(err.message || "Failed to add to inventory", "error");
@@ -240,7 +279,20 @@ function PharmacistDashboard() {
       showNotification("Order shipped!", "success");
       await refreshPatientOrders();
       const medicinesData = await userService.getPharmacistMedicines();
-      setMedicines(medicinesData);
+      
+      const enrichedMedicines = medicinesData.map(medicine => {
+        const supplier = suppliers.find(s => 
+          s.user_id === parseInt(medicine.supplier_id) || 
+          s.supplier_id === parseInt(medicine.supplier_id)
+        );
+        return {
+          ...medicine,
+          supplier_name: supplier?.company_name || medicine.supplier_name || `Supplier #${medicine.supplier_id}`,
+          supplier_company: supplier?.company_name || "Unknown Supplier"
+        };
+      });
+      
+      setMedicines(enrichedMedicines);
     } catch (err) {
       if (err.items) {
         setStockErrorItems(err.items);
@@ -586,11 +638,7 @@ function PharmacistDashboard() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Supplier:</span>
-                          <span className="font-semibold">
-                            {medicine.supplier_name ||
-                              suppliers.find(s => s.user_id === parseInt(medicine.supplier_id))?.company_name ||
-                              "—"}
-                          </span>
+                          <span className="font-semibold">{medicine.supplier_company || medicine.supplier_name || `Supplier #${medicine.supplier_id}`}</span>
                         </div>
                       </div>
                       <button
@@ -607,7 +655,7 @@ function PharmacistDashboard() {
                             try {
                               const meds = await api.get(`/api/supplier/user/${medicine.supplier_id}/medicines`);
                               setSupplierMedicines(meds);
-                            } catch (err) { /* ignore */ }
+                            } catch (err) { }
                           }
                           setActiveTab("requests");
                           setShowRequestForm(true);
@@ -723,9 +771,6 @@ function PharmacistDashboard() {
                           </div>
                         </div>
                       )}
-                      {!supplierInTransit.length && !supplierReady.length && !supplierDelivered.length && (
-                        <p className="text-sm text-gray-400 py-4">No supplier deliveries</p>
-                      )}
                     </div>
 
                     <div>
@@ -761,9 +806,6 @@ function PharmacistDashboard() {
                             ))}
                           </div>
                         </div>
-                      )}
-                      {!patientShipped.length && !patientDelivered.length && (
-                        <p className="text-sm text-gray-400 py-4">No patient deliveries</p>
                       )}
                     </div>
                   </div>
@@ -893,7 +935,114 @@ function PharmacistDashboard() {
           )}
 
           {activeTab === "profile" && (
-            <PharmacistProfileTab user={user} pharmacistDetails={pharmacistDetails} showNotification={showNotification} />
+            <div>
+              <h2 className="text-2xl font-bold mb-6">My Profile</h2>
+              <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Email</label>
+                    <p className="text-lg font-semibold">{user?.email}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Role</label>
+                    <p className="text-lg font-semibold">{user?.role}</p>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Pharmacy Name</label>
+                    {isEditingProfile ? (
+                      <input
+                        type="text"
+                        value={profileForm.pharmacy_name}
+                        onChange={(e) => setProfileForm({...profileForm, pharmacy_name: e.target.value})}
+                        className="mt-1 w-full p-2 border rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold">{pharmacistDetails?.pharmacy_name || <span className="text-gray-400">—</span>}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">License Number</label>
+                    {isEditingProfile ? (
+                      <input
+                        type="text"
+                        value={profileForm.pharmacy_license}
+                        onChange={(e) => setProfileForm({...profileForm, pharmacy_license: e.target.value})}
+                        className="mt-1 w-full p-2 border rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold">{pharmacistDetails?.pharmacy_license || <span className="text-gray-400">—</span>}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Phone</label>
+                    {isEditingProfile ? (
+                      <input
+                        type="text"
+                        value={profileForm.phone}
+                        onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
+                        className="mt-1 w-full p-2 border rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold">{pharmacistDetails?.phone || user?.phone || <span className="text-gray-400">—</span>}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Address</label>
+                    {isEditingProfile ? (
+                      <textarea
+                        value={profileForm.address}
+                        onChange={(e) => setProfileForm({...profileForm, address: e.target.value})}
+                        className="mt-1 w-full p-2 border rounded-lg"
+                        rows="3"
+                      />
+                    ) : (
+                      <p className="text-lg font-semibold">{pharmacistDetails?.address || user?.address || <span className="text-gray-400">—</span>}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  {isEditingProfile ? (
+                    <>
+                      <button
+                        onClick={handleSaveProfile}
+                        disabled={savingProfile}
+                        className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-gray-400 flex items-center gap-2"
+                      >
+                        {savingProfile ? <LoadingSpinner size="small" /> : <Save size={18} />}
+                        {savingProfile ? "Saving..." : "Save Changes"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingProfile(false);
+                          setProfileForm({
+                            pharmacy_name: pharmacistDetails?.pharmacy_name || "",
+                            pharmacy_license: pharmacistDetails?.pharmacy_license || "",
+                            phone: pharmacistDetails?.phone || user?.phone || "",
+                            address: pharmacistDetails?.address || user?.address || ""
+                          });
+                        }}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditingProfile(true)}
+                      className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2"
+                    >
+                      <Edit size={18} />
+                      Edit Profile
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           {addInventoryRequest && (
@@ -1097,11 +1246,7 @@ function PharmacistDashboard() {
                   {selectedMedicine && (
                     <div className="bg-teal-50 p-3 rounded-lg">
                       <p><strong>Medicine:</strong> {selectedMedicine.name}</p>
-                      <p><strong>Supplier:</strong> {
-                        selectedMedicine.supplier_name ||
-                        suppliers.find(s => s.user_id === parseInt(selectedMedicine.supplier_id))?.company_name ||
-                        "Unknown Supplier"
-                      }</p>
+                      <p><strong>Supplier:</strong> {selectedMedicine.supplier_company || selectedMedicine.supplier_name || `Supplier #${selectedMedicine.supplier_id}`}</p>
                     </div>
                   )}
 
@@ -1158,93 +1303,6 @@ function PharmacistDashboard() {
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PharmacistProfileTab({ user, pharmacistDetails, showNotification }) {
-  const [editing, setEditing] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [form, setForm] = React.useState({
-    pharmacy_name: pharmacistDetails?.pharmacy_name || '',
-    license_number: pharmacistDetails?.license_number || '',
-    phone: pharmacistDetails?.phone || user?.phone || '',
-    address: pharmacistDetails?.address || user?.address || ''
-  });
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await api.put(`/api/pharmacists/${user.id}`, form);
-      showNotification("Profile updated!", "success");
-      setEditing(false);
-    } catch (err) {
-      showNotification(err.message || "Failed to update profile", "error");
-    }
-    setSaving(false);
-  };
-
-  const field = (label, key) => (
-    <div key={key}>
-      <label className="text-sm font-medium text-gray-600">{label}</label>
-      {editing ? (
-        <input
-          type="text"
-          value={form[key]}
-          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-          className="mt-1 w-full p-2 border rounded-lg"
-        />
-      ) : (
-        <p className="text-lg font-semibold">{form[key] || <span className="text-gray-400">—</span>}</p>
-      )}
-    </div>
-  );
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-6">My Profile</h2>
-      <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-600">Email</label>
-            <p className="text-lg font-semibold">{user?.email}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-600">Role</label>
-            <p className="text-lg font-semibold">{user?.role}</p>
-          </div>
-          {field("Pharmacy Name", "pharmacy_name")}
-          {field("License Number", "license_number")}
-          {field("Phone", "phone")}
-          {field("Address", "address")}
-        </div>
-        <div className="mt-6 flex gap-3">
-          {editing ? (
-            <>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-gray-400"
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-              <button
-                onClick={() => setEditing(false)}
-                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setEditing(true)}
-              className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
-            >
-              Edit Profile
-            </button>
           )}
         </div>
       </div>
